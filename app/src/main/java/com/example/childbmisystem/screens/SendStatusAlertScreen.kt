@@ -1,0 +1,277 @@
+package com.example.childbmisystem.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.example.childbmisystem.data.AppData
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SendStatusAlertScreen(navController: NavController) {
+
+    var selectedAlertType by remember { mutableStateOf("Warning") }
+    var alertMessage      by remember { mutableStateOf("") }
+    var selectedChildren  by remember { mutableStateOf(setOf<String>()) }
+    var sent              by remember { mutableStateOf(false) }
+    var isLoading         by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+
+    // UI Color Palette
+    val primaryBlue = Color(0xFF2196F3)
+    val lightBlueBanner = Color(0xFFE3F2FD)
+    val infoTextColor = Color(0xFF1565C0)
+    val amber = Color(0xFFFFA000)
+
+    val alertTypes = listOf(
+        Triple("Warning",      "Status needs attention",    amber),
+        Triple("Critical",     "Immediate action required", Color(0xFFF44336)),
+        Triple("Information",  "General update",            primaryBlue),
+        Triple("Checkup Due",  "Schedule appointment",      Color(0xFF9C27B0))
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Send Status Alert", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
+                        Text("Notify parents about health status",
+                            fontSize = 12.sp, color = Color.Gray)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.Black)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+
+            // ── Info Banner ───────────────────────────────────────────────────
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = lightBlueBanner),
+                elevation = CardDefaults.cardElevation(0.dp)
+            ) {
+                Row(
+                    Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = primaryBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Send alerts to parents via SMS or app notification",
+                        fontSize = 13.sp,
+                        color = infoTextColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // ── Health Status Grid (Fixed height for even boxes) ─────────────
+            Text("Health Status", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                alertTypes.chunked(2).forEach { row ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        row.forEach { (type, subtitle, color) ->
+                            val selected = selectedAlertType == type
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(75.dp) // Ensures boxes stay the same height
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (selected) color else Color.White)
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (selected) color else Color(0xFFE0E0E0),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { selectedAlertType = type }
+                                    .padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Column {
+                                    Text(
+                                        type,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (selected) Color.White else Color.Black,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        subtitle,
+                                        fontSize = 11.sp,
+                                        color = if (selected) Color.White.copy(alpha = 0.8f) else Color.Gray,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Select Children ───────────────────────────────────────────────
+            Text(
+                "Select Children (${selectedChildren.size})",
+                fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppData.children.forEach { child ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                        elevation = CardDefaults.cardElevation(0.5.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedChildren = if (child.id in selectedChildren)
+                                        selectedChildren - child.id else selectedChildren + child.id
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = child.id in selectedChildren,
+                                onCheckedChange = { checked ->
+                                    selectedChildren = if (checked) selectedChildren + child.id
+                                    else selectedChildren - child.id
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = primaryBlue)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                // Text Color set to Black
+                                Text(
+                                    text = child.fullName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color.Black
+                                )
+                                // Fixed: Removed child.parentName and replaced with a generic label or existing property
+                                Text(
+                                    text = "Parent: Contact Registered",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Query (Message) ───────────────────────────────────────────────
+            Text("Query (Message)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+            OutlinedTextField(
+                value = alertMessage,
+                onValueChange = { alertMessage = it; sent = false },
+                placeholder = { Text("Enter message for parents...", color = Color.Gray, fontSize = 14.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color(0xFFE0E0E0),
+                    focusedBorderColor = primaryBlue,
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black
+                )
+            )
+
+            // ── Action Buttons ────────────────────────────────────────────────
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { navController.popBackStack() },
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
+                ) {
+                    Text("Cancel", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            if (selectedChildren.isNotEmpty()) {
+                                isLoading = true
+                                AppData.sendAlert(selectedChildren.toList(), selectedAlertType, alertMessage)
+                                isLoading = false
+                                sent = true
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1.2f).height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
+                    enabled = selectedChildren.isNotEmpty() && !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Fixed: Using AutoMirrored version to resolve deprecation warning
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Send", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+
+            if (sent) {
+                Text(
+                    "Alert Sent Successfully",
+                    color = Color(0xFF2E7D32),
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
