@@ -1,24 +1,31 @@
 package com.example.childbmisystem.data
 
+import android.net.Uri
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 object FirebaseRepository {
 
     private const val TAG = "FirebaseRepository"
 
-    // Firebase instances
     val auth: FirebaseAuth get() = FirebaseAuth.getInstance()
     val db: FirebaseFirestore get() = FirebaseFirestore.getInstance()
     val storage: FirebaseStorage get() = FirebaseStorage.getInstance()
 
     val currentUid: String?
         get() = auth.currentUser?.uid
+
+    private var childrenListener: ListenerRegistration? = null
 
     // ───────────────── AUTH ─────────────────
 
@@ -39,19 +46,19 @@ object FirebaseRepository {
         Result.failure(e)
     }
 
-    fun logout() = auth.signOut()
+    fun logout() {
+        stopListeningToChildren()
+        auth.signOut()
+    }
 
     // ───────────────── USERS ─────────────────
 
     suspend fun saveUser(user: User): Result<Unit> = try {
-
         val normalizedUser = user.copy(username = user.username.lowercase())
-
         db.collection("users")
             .document(normalizedUser.id)
             .set(normalizedUser.toMap())
             .await()
-
         Result.success(Unit)
     } catch (e: Exception) {
         Log.e(TAG, "Save user failed", e)
@@ -66,13 +73,11 @@ object FirebaseRepository {
         null
     }
 
-    // ✅ REQUIRED FOR EMAIL LOGIN
     suspend fun getUserByEmail(email: String): User? = try {
         val snap = db.collection("users")
             .whereEqualTo("email", email)
             .get()
             .await()
-
         snap.documents.firstOrNull()?.toUser()
     } catch (e: Exception) {
         Log.e(TAG, "Get user by email failed", e)
@@ -84,7 +89,6 @@ object FirebaseRepository {
             .whereEqualTo("username", username.lowercase())
             .get()
             .await()
-
         snap.documents.firstOrNull()?.toUser()
     } catch (e: Exception) {
         Log.e(TAG, "Get user by username failed", e)
@@ -101,40 +105,54 @@ object FirebaseRepository {
         address = getString("address") ?: ""
     )
 
-    // ───────────────── CHILDREN ─────────────────
+    // ───────────────── CHILDREN (REAL‑TIME) ─────────────────
 
-    suspend fun loadChildren(): List<Child> = try {
-        val parentId = currentUid
+    fun startListeningToChildren(role: String, onChildrenChanged: (List<Child>) -> Unit) {
+        stopListeningToChildren()
 
-        val query = if (parentId != null) {
-            db.collection("children")
-                .whereEqualTo("parentId", parentId)
-        } else {
-            db.collection("children")
+        val query: Query = when {
+            currentUid == null -> db.collection("children")
+            role.equals("bhw", ignoreCase = true) -> db.collection("children")
+            else -> db.collection("children").whereEqualTo("parentId", currentUid)
         }
 
-        query.get().await().documents.map { doc ->
-            Child(
-                id = doc.id,
-                fullName = doc.getString("fullName") ?: "",
-                dateOfBirth = doc.getString("dateOfBirth") ?: "",
-                gender = doc.getString("gender") ?: "",
-                parentId = doc.getString("parentId")
-            ).also {
-                it.bmiHistory.addAll(loadBmiRecords(doc.id))
+        childrenListener = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.e(TAG, "Listen to children failed", error)
+                return@addSnapshotListener
+            }
+            if (snapshot == null) return@addSnapshotListener
+
+            val childrenWithoutHistory = snapshot.documents.mapNotNull { doc ->
+                Child(
+                    id = doc.id,
+                    fullName = doc.getString("fullName") ?: "",
+                    dateOfBirth = doc.getString("dateOfBirth") ?: "",
+                    gender = doc.getString("gender") ?: "",
+                    parentId = doc.getString("parentId"),
+                    photoUrl = doc.getString("photoUrl") ?: ""
+                )
+            }
+
+            CoroutineScope(Dispatchers.IO).launch {
+                val childrenWithHistory = childrenWithoutHistory.map { child ->
+                    val records = loadBmiRecords(child.id)
+                    child.copy(bmiHistory = records.toMutableList())
+                }
+                withContext(Dispatchers.Main) {
+                    onChildrenChanged(childrenWithHistory)
+                }
             }
         }
+    }
 
-    } catch (e: Exception) {
-        Log.e(TAG, "Load children failed", e)
-        emptyList()
+    fun stopListeningToChildren() {
+        childrenListener?.remove()
+        childrenListener = null
     }
 
     suspend fun addChild(child: Child): Result<String> = try {
-        val ref = db.collection("children")
-            .add(child.toMap())
-            .await()
-
+        val ref = db.collection("children").add(child.toMap()).await()
         Result.success(ref.id)
     } catch (e: Exception) {
         Log.e(TAG, "Add child failed", e)
@@ -142,15 +160,33 @@ object FirebaseRepository {
     }
 
     suspend fun deleteChild(childId: String): Result<Unit> = try {
-        db.collection("children")
-            .document(childId)
-            .delete()
-            .await()
-
+        db.collection("children").document(childId).delete().await()
+        deleteChildPhoto(childId)
         Result.success(Unit)
     } catch (e: Exception) {
         Log.e(TAG, "Delete child failed", e)
         Result.failure(e)
+    }
+
+    // ───────────────── CHILD PHOTO UPLOAD ─────────────────
+
+    suspend fun uploadChildPhoto(childId: String, imageUri: Uri): Result<String> = try {
+        val storageRef = storage.reference.child("child_photos/$childId.jpg")
+        storageRef.putFile(imageUri).await()
+        val downloadUrl = storageRef.downloadUrl.await()
+        Result.success(downloadUrl.toString())
+    } catch (e: Exception) {
+        Log.e(TAG, "Upload child photo failed", e)
+        Result.failure(e)
+    }
+
+    suspend fun deleteChildPhoto(childId: String): Result<Unit> = try {
+        val storageRef = storage.reference.child("child_photos/$childId.jpg")
+        storageRef.delete().await()
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Log.d(TAG, "No photo to delete for child $childId")
+        Result.success(Unit)
     }
 
     // ───────────────── BMI RECORDS ─────────────────
@@ -185,7 +221,6 @@ object FirebaseRepository {
             .collection("bmiRecords")
             .add(record.toMap())
             .await()
-
         Result.success(ref.id)
     } catch (e: Exception) {
         Log.e(TAG, "Add BMI record failed", e)
@@ -195,10 +230,7 @@ object FirebaseRepository {
     // ───────────────── ALERTS ─────────────────
 
     suspend fun sendAlert(alert: StatusAlert): Result<String> = try {
-        val ref = db.collection("alerts")
-            .add(alert.toMap())
-            .await()
-
+        val ref = db.collection("alerts").add(alert.toMap()).await()
         Result.success(ref.id)
     } catch (e: Exception) {
         Log.e(TAG, "Send alert failed", e)
@@ -230,15 +262,10 @@ object FirebaseRepository {
             .whereEqualTo("childId", childId)
             .get()
             .await()
-
-        snap.documents.forEach {
-            it.reference.delete().await()
-        }
-
+        snap.documents.forEach { it.reference.delete().await() }
         Result.success(Unit)
     } catch (e: Exception) {
         Log.e(TAG, "Delete alerts failed", e)
         Result.failure(e)
     }
 }
-

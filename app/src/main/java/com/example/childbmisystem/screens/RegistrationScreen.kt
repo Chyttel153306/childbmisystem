@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -91,7 +92,7 @@ fun RegistrationScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Role Toggle (GREEN)
+        // Toggle (clean highlight only when selected)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -125,6 +126,16 @@ fun RegistrationScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // COMMON TEXTFIELD COLORS
+        val textFieldColors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = green,
+            unfocusedBorderColor = Color.LightGray,
+            focusedTextColor = Color.Black,
+            unfocusedTextColor = Color.Black,
+            cursorColor = green,
+            focusedLabelColor = green
+        )
+
         // Full Name
         OutlinedTextField(
             value = fullName,
@@ -132,7 +143,9 @@ fun RegistrationScreen(navController: NavController) {
             label = { Text("Name") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            singleLine = true
+            singleLine = true,
+            textStyle = TextStyle(color = Color.Black),
+            colors = textFieldColors
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -144,7 +157,9 @@ fun RegistrationScreen(navController: NavController) {
             label = { Text("Address / Barangay") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            singleLine = true
+            singleLine = true,
+            textStyle = TextStyle(color = Color.Black),
+            colors = textFieldColors
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -156,7 +171,9 @@ fun RegistrationScreen(navController: NavController) {
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            singleLine = true
+            singleLine = true,
+            textStyle = TextStyle(color = Color.Black),
+            colors = textFieldColors
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -169,6 +186,7 @@ fun RegistrationScreen(navController: NavController) {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             singleLine = true,
+            textStyle = TextStyle(color = Color.Black),
             visualTransformation = if (passwordVisible)
                 VisualTransformation.None
             else
@@ -181,7 +199,8 @@ fun RegistrationScreen(navController: NavController) {
                         contentDescription = null
                     )
                 }
-            }
+            },
+            colors = textFieldColors
         )
 
         Spacer(modifier = Modifier.height(16.dp))

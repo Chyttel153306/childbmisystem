@@ -54,9 +54,17 @@ fun SendStatusAlertScreen(navController: NavController) {
             TopAppBar(
                 title = {
                     Column {
-                        Text("Send Status Alert", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
-                        Text("Notify parents about health status",
-                            fontSize = 12.sp, color = Color.Gray)
+                        Text(
+                            "Send Status Alert",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            "Notify parents about health status",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
                     }
                 },
                 navigationIcon = {
@@ -104,7 +112,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
-            // ── Health Status Grid (Fixed height for even boxes) ─────────────
+            // ── Health Status Grid ───────────────────────────────────────────
             Text("Health Status", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 alertTypes.chunked(2).forEach { row ->
@@ -117,7 +125,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(75.dp) // Ensures boxes stay the same height
+                                    .height(75.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(if (selected) color else Color.White)
                                     .border(
@@ -149,7 +157,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
-            // ── Select Children ───────────────────────────────────────────────
+            // ── Select Children ─────────────────────────────────────────────
             Text(
                 "Select Children (${selectedChildren.size})",
                 fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black
@@ -183,14 +191,12 @@ fun SendStatusAlertScreen(navController: NavController) {
                             )
                             Spacer(Modifier.width(8.dp))
                             Column {
-                                // Text Color set to Black
                                 Text(
                                     text = child.fullName,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = Color.Black
                                 )
-                                // Fixed: Removed child.parentName and replaced with a generic label or existing property
                                 Text(
                                     text = "Parent: Contact Registered",
                                     fontSize = 12.sp,
@@ -202,7 +208,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
-            // ── Query (Message) ───────────────────────────────────────────────
+            // ── Query (Message) ─────────────────────────────────────────────
             Text("Query (Message)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
             OutlinedTextField(
                 value = alertMessage,
@@ -220,20 +226,22 @@ fun SendStatusAlertScreen(navController: NavController) {
                 )
             )
 
-            // ── Action Buttons ────────────────────────────────────────────────
+            // ── Action Buttons ─────────────────────────────────────────────
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
+                // Cancel Button (Blue, White Text)
+                Button(
                     onClick = { navController.popBackStack() },
                     modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue, contentColor = Color.White)
                 ) {
-                    Text("Cancel", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text("Cancel", fontWeight = FontWeight.Bold)
                 }
 
+                // Send Button (Blue, White Text)
                 Button(
                     onClick = {
                         scope.launch {
@@ -247,15 +255,14 @@ fun SendStatusAlertScreen(navController: NavController) {
                     },
                     modifier = Modifier.weight(1.2f).height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue, contentColor = Color.White),
                     enabled = selectedChildren.isNotEmpty() && !isLoading
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Fixed: Using AutoMirrored version to resolve deprecation warning
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                             Spacer(Modifier.width(8.dp))
                             Text("Send", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }

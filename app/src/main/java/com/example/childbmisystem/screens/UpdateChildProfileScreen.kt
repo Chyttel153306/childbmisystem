@@ -32,11 +32,11 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
         return
     }
 
-    val latest   = child.latestBmi
+    val latest = child.latestBmi
     var heightCm by remember { mutableStateOf(latest?.heightCm?.toString() ?: "") }
     var weightKg by remember { mutableStateOf(latest?.weightKg?.toString() ?: "") }
-    var notes    by remember { mutableStateOf("") }
-    var saved    by remember { mutableStateOf(false) }
+    var notes by remember { mutableStateOf("") }
+    var saved by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
@@ -76,6 +76,7 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
             // Child Info Header
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -128,7 +129,6 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                 }
             }
 
-            // New BMI Preview (Kept Green as the "result")
             if (newBmi > 0) {
                 Text("New BMI: $newBmi  (${AppData.bmiStatus(newBmi)})",
                     color = green, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -141,17 +141,13 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                ) {
-                    Text("⬆ Upload")
-                }
+                ) { Text("⬆ Upload") }
                 OutlinedButton(
                     onClick = {},
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                ) {
-                    Text("📷 Photo")
-                }
+                ) { Text("📷 Photo") }
             }
 
             Text("Notes", fontWeight = FontWeight.SemiBold, color = Color.Black)
@@ -179,9 +175,7 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                ) {
-                    Text("Cancel", fontWeight = FontWeight.Bold)
-                }
+                ) { Text("Cancel", fontWeight = FontWeight.Bold) }
 
                 Button(
                     onClick = {
@@ -201,15 +195,8 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                     colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
                     enabled = !isLoading
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("Save", fontWeight = FontWeight.Bold, color = Color.White)
-                    }
+                    if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text("Save", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }

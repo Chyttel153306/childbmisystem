@@ -1,6 +1,6 @@
-
 package com.example.childbmisystem.data
 
+import android.net.Uri
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.Timestamp
@@ -8,12 +8,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// ─── Models ───────────────────────────────────────────────────────────────────
-
+// Models
 data class User(
     val id: String = "",
     val fullName: String = "",
@@ -62,6 +62,7 @@ data class Child(
     val dateOfBirth: String = "",
     val gender: String = "",
     val parentId: String? = null,
+    val photoUrl: String = "",
     val bmiHistory: MutableList<BmiRecord> = mutableListOf()
 ) {
     val latestBmi: BmiRecord? get() = bmiHistory.lastOrNull()
@@ -78,7 +79,8 @@ data class Child(
         "fullName"    to fullName,
         "dateOfBirth" to dateOfBirth,
         "gender"      to gender,
-        "parentId"    to (parentId ?: "")
+        "parentId"    to (parentId ?: ""),
+        "photoUrl"    to photoUrl
     )
 }
 
@@ -99,8 +101,7 @@ data class StatusAlert(
     )
 }
 
-// ─── Firebase-backed Store ────────────────────────────────────────────────────
-
+// AppData object with real‑time children updates
 object AppData {
 
     var currentUser = mutableStateOf<User?>(null)
@@ -108,21 +109,14 @@ object AppData {
     val alerts      = mutableStateListOf<StatusAlert>()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var isListening = false
 
     // ─── Auth ─────────────────────────────────────────────────────────────────
 
-    // ✅ FIXED LOGIN (EMAIL-BASED)
     suspend fun login(email: String, password: String, role: String): Boolean {
-
-        // 🔍 Get user using EMAIL instead of username
         val user = FirebaseRepository.getUserByEmail(email) ?: return false
-
-        // 🔐 Check role
         if (!user.role.equals(role, ignoreCase = true)) return false
-
-        // 🔑 Firebase Auth login
         val result = FirebaseRepository.loginWithEmail(email, password)
-
         return if (result.isSuccess) {
             currentUser.value = user
             loadData()
@@ -135,12 +129,9 @@ object AppData {
         password: String, role: String, phoneNumber: String, address: String
     ): Boolean {
         if (FirebaseRepository.getUserByUsername(username) != null) return false
-
         val result = FirebaseRepository.registerWithEmail(email, password)
         if (result.isFailure) return false
-
         val uid = result.getOrNull() ?: return false
-
         val user = User(
             id = uid,
             fullName = fullName,
@@ -151,7 +142,6 @@ object AppData {
             phoneNumber = phoneNumber,
             address = address
         )
-
         FirebaseRepository.saveUser(user)
         return true
     }
@@ -161,16 +151,22 @@ object AppData {
         currentUser.value = null
         children.clear()
         alerts.clear()
+        isListening = false
     }
 
-    // ─── Data Loading ─────────────────────────────────────────────────────────
+    // ─── Data Loading (Real‑time) ────────────────────────────────────────────
 
     fun loadData() {
-        scope.launch {
-            val loadedChildren = FirebaseRepository.loadChildren()
-            children.clear()
-            children.addAll(loadedChildren)
+        if (!isListening) {
+            val role = currentUser.value?.role ?: return
+            FirebaseRepository.startListeningToChildren(role) { updatedChildren ->
+                children.clear()
+                children.addAll(updatedChildren)
+            }
+            isListening = true
+        }
 
+        scope.launch {
             val loadedAlerts = FirebaseRepository.loadAlerts()
             alerts.clear()
             alerts.addAll(loadedAlerts)
@@ -179,30 +175,46 @@ object AppData {
 
     // ─── Children ─────────────────────────────────────────────────────────────
 
-    suspend fun addChild(fullName: String, dob: String, gender: String): Child {
-        val child = Child(
+    suspend fun addChild(
+        fullName: String,
+        dob: String,
+        gender: String,
+        imageUri: Uri? = null
+    ): Child {
+        // Create temporary child to get ID
+        val tempChild = Child(
             fullName = fullName,
             dateOfBirth = dob,
             gender = gender,
             parentId = currentUser.value?.id
         )
+        val addResult = FirebaseRepository.addChild(tempChild)
+        val childId = addResult.getOrNull() ?: return tempChild
 
-        val result = FirebaseRepository.addChild(child)
-        val newChild = child.copy(id = result.getOrNull() ?: "")
-        children.add(newChild)
-        return newChild
+        var photoUrl = ""
+        if (imageUri != null) {
+            val uploadResult = FirebaseRepository.uploadChildPhoto(childId, imageUri)
+            if (uploadResult.isSuccess) {
+                photoUrl = uploadResult.getOrNull() ?: ""
+            }
+        }
+
+        // Update the child document with photoUrl
+        val finalChild = tempChild.copy(id = childId, photoUrl = photoUrl)
+        FirebaseRepository.db.collection("children")
+            .document(childId)
+            .update("photoUrl", photoUrl)
+            .await()
+
+        return finalChild
     }
 
     suspend fun deleteChild(childId: String) {
         FirebaseRepository.deleteChild(childId)
         FirebaseRepository.deleteAlertsForChild(childId)
-
-        children.removeAll { it.id == childId }
-        alerts.removeAll { it.childId == childId }
     }
 
-    fun getChild(childId: String): Child? =
-        children.find { it.id == childId }
+    fun getChild(childId: String): Child? = children.find { it.id == childId }
 
     fun childrenNeedingAttention(): Int =
         children.count { it.bmiStatus != "Normal" && it.bmiStatus != "No Data" }
@@ -231,7 +243,6 @@ object AppData {
         date: String
     ) {
         val bmi = calculateBmi(heightCm, weightKg)
-
         val record = BmiRecord(
             date = date,
             heightCm = heightCm,
@@ -241,16 +252,14 @@ object AppData {
             notes = notes,
             recordedBy = currentUser.value?.fullName ?: "BHW"
         )
-
         val result = FirebaseRepository.addBmiRecord(childId, record)
         val newRecord = record.copy(id = result.getOrNull() ?: "")
-
+        // Optimistic local update for immediate feedback
         val index = children.indexOfFirst { it.id == childId }
-
         if (index >= 0) {
-            val updated = children[index].bmiHistory.toMutableList()
-            updated.add(newRecord)
-            children[index] = children[index].copy(bmiHistory = updated)
+            val updatedHistory = children[index].bmiHistory.toMutableList()
+            updatedHistory.add(newRecord)
+            children[index] = children[index].copy(bmiHistory = updatedHistory)
         }
     }
 
@@ -258,7 +267,6 @@ object AppData {
 
     suspend fun sendAlert(childIds: List<String>, alertType: String, message: String) {
         val date = SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(Date())
-
         childIds.forEach { childId ->
             val alert = StatusAlert(
                 childId = childId,
@@ -267,7 +275,6 @@ object AppData {
                 sentBy = currentUser.value?.fullName ?: "BHW",
                 date = date
             )
-
             val result = FirebaseRepository.sendAlert(alert)
             alerts.add(alert.copy(id = result.getOrNull() ?: ""))
         }
@@ -276,4 +283,3 @@ object AppData {
     fun getCurrentDate(): String =
         SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(Date())
 }
-

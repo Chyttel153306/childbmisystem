@@ -11,8 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,13 +48,14 @@ fun CreateChildProfileScreen(navController: NavController) {
     val genderOptions = listOf("Male", "Female", "Other")
 
     var isLoading by remember { mutableStateOf(false) }
+    var proofUploaded by remember { mutableStateOf(false) }
 
     // Live BMI Calculation
     val hVal = height.toDoubleOrNull() ?: 0.0
     val wVal = weight.toDoubleOrNull() ?: 0.0
     val liveBmi = remember(hVal, wVal) { AppData.calculateBmi(hVal, wVal) }
 
-    // UI Style Constants
+    // UI Colors
     val inputBackgroundColor = Color(0xFFE8E9EC)
     val cardBorderColor = Color(0xFFE0E0E0)
     val primaryGreen = Color(0xFF00C853)
@@ -69,7 +70,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                     .padding(top = 16.dp, start = 8.dp, end = 16.dp, bottom = 8.dp)
             ) {
                 IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.Black)
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.Black)
                 }
                 Column {
                     Text(
@@ -222,7 +223,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                         )
                     }
 
-                    // Live Calculated BMI Display
+                    // Live BMI Display
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -236,52 +237,37 @@ fun CreateChildProfileScreen(navController: NavController) {
                             fontSize = 14.sp
                         )
                     }
-                }
-            }
 
-            // --- SECTION 3: Image Attachment ---
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, cardBorderColor),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Image Attachment (Photo)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
+                    // --- Upload / Photo Buttons ---
+                    Text(
+                        text = "Add Proof / Photo",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFF0FDF4), RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0xFF86EFAC), RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        contentAlignment = Alignment.CenterStart
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(primaryGreen, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FileUpload,
-                                    contentDescription = "Upload",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Photo uploaded",
-                                color = Color(0xFF166534),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                        OutlinedButton(
+                            onClick = { proofUploaded = true }, // placeholder for file upload
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
+                        ) {
+                            Icon(imageVector = Icons.Filled.FileUpload, contentDescription = "Upload")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Upload")
+                        }
+
+                        OutlinedButton(
+                            onClick = { proofUploaded = true }, // placeholder for camera/photo
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
+                        ) {
+                            Text("📷 Photo")
                         }
                     }
                 }
@@ -324,7 +310,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 childId = child.id,
                                 heightCm = h,
                                 weightKg = w,
-                                notes = "",
+                                notes = if (proofUploaded) "Proof Uploaded" else "",
                                 date = AppData.getCurrentDate()
                             )
 

@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.firebase.storage.ktx)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.ui.text)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -69,6 +70,7 @@ dependencies {
 
     implementation(libs.androidx.concurrent.futures)
     implementation(libs.androidx.navigation.compose)
-    implementation ("androidx.compose.material:material-icons-extended")
+    implementation (libs.androidx.compose.material.icons.extended)
+    implementation(libs.coil.compose)
 
 }
