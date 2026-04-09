@@ -1,5 +1,6 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.bhwscreen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -103,7 +105,7 @@ fun DeleteChildProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.outlinedCardColors(containerColor = lightRed),
-                border = androidx.compose.foundation.BorderStroke(1.dp, borderRed)
+                border = BorderStroke(1.dp, borderRed)
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -157,7 +159,7 @@ fun DeleteChildProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
+                border = BorderStroke(1.dp, cardBorder)
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
@@ -176,7 +178,7 @@ fun DeleteChildProfileScreen(
                             modifier = Modifier
                                 .size(60.dp)
                                 .background(
-                                    brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                    brush = Brush.linearGradient(
                                         colors = listOf(
                                             Color(0xFF5B8CFF),
                                             Color(0xFF7B4DFF)
@@ -217,7 +219,7 @@ fun DeleteChildProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
+                border = BorderStroke(1.dp, cardBorder)
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
@@ -243,7 +245,7 @@ fun DeleteChildProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.outlinedCardColors(containerColor = noteBg),
-                border = androidx.compose.foundation.BorderStroke(1.dp, noteBorder)
+                border = BorderStroke(1.dp, noteBorder)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
@@ -279,7 +281,7 @@ fun DeleteChildProfileScreen(
                         containerColor = Color.White,
                         contentColor = Color.Black
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
+                    border = BorderStroke(1.dp, cardBorder)
                 ) {
                     Text(
                         text = "Cancel",

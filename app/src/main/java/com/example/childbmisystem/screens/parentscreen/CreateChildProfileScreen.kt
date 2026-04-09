@@ -1,18 +1,16 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.parentscreen
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,7 +68,11 @@ fun CreateChildProfileScreen(navController: NavController) {
                     .padding(top = 16.dp, start = 8.dp, end = 16.dp, bottom = 8.dp)
             ) {
                 IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.Black)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.Black
+                    )
                 }
                 Column {
                     Text(
@@ -143,32 +145,51 @@ fun CreateChildProfileScreen(navController: NavController) {
                                     ),
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
+
                                 TextField(
                                     value = gender,
                                     onValueChange = {},
                                     readOnly = true,
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = genderExpanded) },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                            expanded = genderExpanded
+                                        )
+                                    },
                                     colors = TextFieldDefaults.colors(
                                         focusedTextColor = Color.Black,
                                         unfocusedTextColor = Color.Black,
                                         focusedContainerColor = inputBackgroundColor,
                                         unfocusedContainerColor = inputBackgroundColor,
                                         focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        focusedTrailingIconColor = Color.Black,
+                                        unfocusedTrailingIconColor = Color.Black
                                     ),
                                     shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth()
                                 )
                             }
+
                             ExposedDropdownMenu(
                                 expanded = genderExpanded,
-                                onDismissRequest = { genderExpanded = false }
+                                onDismissRequest = { genderExpanded = false },
+                                modifier = Modifier.background(Color.White)
                             ) {
-                                genderOptions.forEach {
+                                genderOptions.forEach { option ->
                                     DropdownMenuItem(
-                                        text = { Text(it, color = Color.Black) },
+                                        text = {
+                                            Text(
+                                                text = option,
+                                                color = Color.Black
+                                            )
+                                        },
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = Color.Black
+                                        ),
                                         onClick = {
-                                            gender = it
+                                            gender = option
                                             genderExpanded = false
                                         }
                                     )
@@ -199,7 +220,12 @@ fun CreateChildProfileScreen(navController: NavController) {
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Child BMI Record", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
+                    Text(
+                        "Child BMI Record",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         FormInputField(
@@ -251,19 +277,26 @@ fun CreateChildProfileScreen(navController: NavController) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         OutlinedButton(
-                            onClick = { proofUploaded = true }, // placeholder for file upload
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            onClick = { proofUploaded = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                         ) {
-                            Icon(imageVector = Icons.Filled.FileUpload, contentDescription = "Upload")
+                            Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = "Upload"
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Upload")
                         }
 
                         OutlinedButton(
-                            onClick = { proofUploaded = true }, // placeholder for camera/photo
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            onClick = { proofUploaded = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                         ) {
@@ -331,9 +364,17 @@ fun CreateChildProfileScreen(navController: NavController) {
                 shape = RoundedCornerShape(12.dp)
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 } else {
-                    Text("Create Profile", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Create Profile",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }

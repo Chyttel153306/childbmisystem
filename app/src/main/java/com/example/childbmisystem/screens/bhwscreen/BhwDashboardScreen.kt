@@ -1,4 +1,4 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.bhwscreen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

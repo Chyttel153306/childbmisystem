@@ -1,5 +1,6 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.bhwscreen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,24 +30,24 @@ import kotlinx.coroutines.launch
 fun SendStatusAlertScreen(navController: NavController) {
 
     var selectedAlertType by remember { mutableStateOf("Warning") }
-    var alertMessage      by remember { mutableStateOf("") }
-    var selectedChildren  by remember { mutableStateOf(setOf<String>()) }
-    var sent              by remember { mutableStateOf(false) }
-    var isLoading         by remember { mutableStateOf(false) }
+    var alertMessage by remember { mutableStateOf("") }
+    var selectedChildren by remember { mutableStateOf(setOf<String>()) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isSuccess by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
-    // UI Color Palette
     val primaryBlue = Color(0xFF2196F3)
     val lightBlueBanner = Color(0xFFE3F2FD)
     val infoTextColor = Color(0xFF1565C0)
     val amber = Color(0xFFFFA000)
 
     val alertTypes = listOf(
-        Triple("Warning",      "Status needs attention",    amber),
-        Triple("Critical",     "Immediate action required", Color(0xFFF44336)),
-        Triple("Information",  "General update",            primaryBlue),
-        Triple("Checkup Due",  "Schedule appointment",      Color(0xFF9C27B0))
+        Triple("Warning", "Status needs attention", amber),
+        Triple("Critical", "Immediate action required", Color(0xFFF44336)),
+        Triple("Information", "General update", primaryBlue),
+        Triple("Checkup Due", "Schedule appointment", Color(0xFF9C27B0))
     )
 
     Scaffold(
@@ -69,7 +70,11 @@ fun SendStatusAlertScreen(navController: NavController) {
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.Black)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = Color.Black
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -86,7 +91,6 @@ fun SendStatusAlertScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
 
-            // ── Info Banner ───────────────────────────────────────────────────
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = lightBlueBanner),
@@ -104,7 +108,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        "Send alerts to parents via SMS or app notification",
+                        "Send alerts to parents via app notification",
                         fontSize = 13.sp,
                         color = infoTextColor,
                         fontWeight = FontWeight.Medium
@@ -112,8 +116,13 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
-            // ── Health Status Grid ───────────────────────────────────────────
-            Text("Health Status", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+            Text(
+                "Health Status",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color.Black
+            )
+
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 alertTypes.chunked(2).forEach { row ->
                     Row(
@@ -133,7 +142,10 @@ fun SendStatusAlertScreen(navController: NavController) {
                                         color = if (selected) color else Color(0xFFE0E0E0),
                                         shape = RoundedCornerShape(12.dp)
                                     )
-                                    .clickable { selectedAlertType = type }
+                                    .clickable {
+                                        selectedAlertType = type
+                                        statusMessage = null
+                                    }
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.CenterStart
                             ) {
@@ -157,10 +169,11 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
-            // ── Select Children ─────────────────────────────────────────────
             Text(
                 "Select Children (${selectedChildren.size})",
-                fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color.Black
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -168,15 +181,20 @@ fun SendStatusAlertScreen(navController: NavController) {
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
                         elevation = CardDefaults.cardElevation(0.5.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    selectedChildren = if (child.id in selectedChildren)
-                                        selectedChildren - child.id else selectedChildren + child.id
+                                    selectedChildren =
+                                        if (child.id in selectedChildren) {
+                                            selectedChildren - child.id
+                                        } else {
+                                            selectedChildren + child.id
+                                        }
+                                    statusMessage = null
                                 }
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -184,8 +202,10 @@ fun SendStatusAlertScreen(navController: NavController) {
                             Checkbox(
                                 checked = child.id in selectedChildren,
                                 onCheckedChange = { checked ->
-                                    selectedChildren = if (checked) selectedChildren + child.id
-                                    else selectedChildren - child.id
+                                    selectedChildren =
+                                        if (checked) selectedChildren + child.id
+                                        else selectedChildren - child.id
+                                    statusMessage = null
                                 },
                                 colors = CheckboxDefaults.colors(checkedColor = primaryBlue)
                             )
@@ -208,12 +228,26 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
-            // ── Query (Message) ─────────────────────────────────────────────
-            Text("Query (Message)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+            Text(
+                "Query (Message)",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = Color.Black
+            )
+
             OutlinedTextField(
                 value = alertMessage,
-                onValueChange = { alertMessage = it; sent = false },
-                placeholder = { Text("Enter message for parents...", color = Color.Gray, fontSize = 14.sp) },
+                onValueChange = {
+                    alertMessage = it
+                    statusMessage = null
+                },
+                placeholder = {
+                    Text(
+                        "Enter message for parents...",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp),
@@ -226,54 +260,102 @@ fun SendStatusAlertScreen(navController: NavController) {
                 )
             )
 
-            // ── Action Buttons ─────────────────────────────────────────────
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Cancel Button (Blue, White Text)
                 Button(
                     onClick = { navController.popBackStack() },
-                    modifier = Modifier.weight(1f).height(52.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue, contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = primaryBlue,
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Cancel", fontWeight = FontWeight.Bold)
                 }
 
-                // Send Button (Blue, White Text)
                 Button(
                     onClick = {
                         scope.launch {
-                            if (selectedChildren.isNotEmpty()) {
-                                isLoading = true
-                                AppData.sendAlert(selectedChildren.toList(), selectedAlertType, alertMessage)
-                                isLoading = false
-                                sent = true
+                            statusMessage = null
+
+                            if (selectedChildren.isEmpty()) {
+                                isSuccess = false
+                                statusMessage = "Please select at least one child."
+                                return@launch
+                            }
+
+                            if (alertMessage.isBlank()) {
+                                isSuccess = false
+                                statusMessage = "Please enter a message."
+                                return@launch
+                            }
+
+                            isLoading = true
+                            val success = AppData.sendAlert(
+                                selectedChildren.toList(),
+                                selectedAlertType,
+                                alertMessage
+                            )
+                            isLoading = false
+
+                            if (success) {
+                                isSuccess = true
+                                statusMessage = "Alert sent successfully."
+                                selectedChildren = emptySet()
+                                alertMessage = ""
+                                selectedAlertType = "Warning"
+                            } else {
+                                isSuccess = false
+                                statusMessage = "Failed to send alert."
                             }
                         }
                     },
-                    modifier = Modifier.weight(1.2f).height(52.dp),
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue, contentColor = Color.White),
-                    enabled = selectedChildren.isNotEmpty() && !isLoading
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = primaryBlue,
+                        contentColor = Color.White
+                    ),
+                    enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White
+                            )
                             Spacer(Modifier.width(8.dp))
-                            Text("Send", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Send",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
                         }
                     }
                 }
             }
 
-            if (sent) {
+            statusMessage?.let { message ->
                 Text(
-                    "Alert Sent Successfully",
-                    color = Color(0xFF2E7D32),
+                    text = message,
+                    color = if (isSuccess) Color(0xFF2E7D32) else Color(0xFFD32F2F),
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold

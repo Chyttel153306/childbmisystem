@@ -4,16 +4,12 @@ import android.net.Uri
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.Timestamp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
-// Models
 data class User(
     val id: String = "",
     val fullName: String = "",
@@ -25,12 +21,12 @@ data class User(
     val address: String = ""
 ) {
     fun toMap() = mapOf(
-        "fullName"    to fullName,
-        "username"    to username.lowercase(),
-        "role"        to role,
-        "email"       to email,
+        "fullName" to fullName,
+        "username" to username.lowercase(),
+        "role" to role,
+        "email" to email,
         "phoneNumber" to phoneNumber,
-        "address"     to address
+        "address" to address
     )
 }
 
@@ -45,14 +41,14 @@ data class BmiRecord(
     val recordedBy: String = ""
 ) {
     fun toMap() = mapOf(
-        "date"       to date,
-        "heightCm"   to heightCm,
-        "weightKg"   to weightKg,
-        "bmi"        to bmi,
-        "status"     to status,
-        "notes"      to notes,
+        "date" to date,
+        "heightCm" to heightCm,
+        "weightKg" to weightKg,
+        "bmi" to bmi,
+        "status" to status,
+        "notes" to notes,
         "recordedBy" to recordedBy,
-        "timestamp"  to Timestamp.now()
+        "timestamp" to Timestamp.now()
     )
 }
 
@@ -65,22 +61,28 @@ data class Child(
     val photoUrl: String = "",
     val bmiHistory: MutableList<BmiRecord> = mutableListOf()
 ) {
-    val latestBmi: BmiRecord? get() = bmiHistory.lastOrNull()
-    val bmiStatus: String get() = latestBmi?.status ?: "No Data"
+    val latestBmi: BmiRecord?
+        get() = bmiHistory.firstOrNull()
 
-    val ageYears: Int get() = try {
-        val parts = dateOfBirth.split("-")
-        val birthYear = parts.last().trim().toInt()
-        val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-        currentYear - birthYear
-    } catch (e: Exception) { 0 }
+    val bmiStatus: String
+        get() = latestBmi?.status ?: "No Data"
+
+    val ageYears: Int
+        get() = try {
+            val parts = dateOfBirth.split("-")
+            val birthYear = parts.last().trim().toInt()
+            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            currentYear - birthYear
+        } catch (e: Exception) {
+            0
+        }
 
     fun toMap() = mapOf(
-        "fullName"    to fullName,
+        "fullName" to fullName,
         "dateOfBirth" to dateOfBirth,
-        "gender"      to gender,
-        "parentId"    to (parentId ?: ""),
-        "photoUrl"    to photoUrl
+        "gender" to gender,
+        "parentId" to (parentId ?: ""),
+        "photoUrl" to photoUrl
     )
 }
 
@@ -90,48 +92,57 @@ data class StatusAlert(
     val alertType: String = "",
     val message: String = "",
     val sentBy: String = "",
-    val date: String = ""
+    val date: String = "",
+    val timestamp: Timestamp = Timestamp.now()
 ) {
     fun toMap() = mapOf(
-        "childId"   to childId,
+        "childId" to childId,
         "alertType" to alertType,
-        "message"   to message,
-        "sentBy"    to sentBy,
-        "date"      to date
+        "message" to message,
+        "sentBy" to sentBy,
+        "date" to date,
+        "timestamp" to timestamp
     )
 }
 
-// AppData object with real‑time children updates
 object AppData {
 
     var currentUser = mutableStateOf<User?>(null)
-    val children    = mutableStateListOf<Child>()
-    val alerts      = mutableStateListOf<StatusAlert>()
+    val children = mutableStateListOf<Child>()
+    val alerts = mutableStateListOf<StatusAlert>()
 
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isListening = false
-
-    // ─── Auth ─────────────────────────────────────────────────────────────────
 
     suspend fun login(email: String, password: String, role: String): Boolean {
         val user = FirebaseRepository.getUserByEmail(email) ?: return false
         if (!user.role.equals(role, ignoreCase = true)) return false
+
         val result = FirebaseRepository.loginWithEmail(email, password)
         return if (result.isSuccess) {
             currentUser.value = user
             loadData()
             true
-        } else false
+        } else {
+            false
+        }
     }
 
     suspend fun register(
-        fullName: String, username: String, email: String,
-        password: String, role: String, phoneNumber: String, address: String
+        fullName: String,
+        username: String,
+        email: String,
+        password: String,
+        role: String,
+        phoneNumber: String,
+        address: String
     ): Boolean {
         if (FirebaseRepository.getUserByUsername(username) != null) return false
+
         val result = FirebaseRepository.registerWithEmail(email, password)
         if (result.isFailure) return false
+
         val uid = result.getOrNull() ?: return false
+
         val user = User(
             id = uid,
             fullName = fullName,
@@ -142,6 +153,7 @@ object AppData {
             phoneNumber = phoneNumber,
             address = address
         )
+
         FirebaseRepository.saveUser(user)
         return true
     }
@@ -154,26 +166,26 @@ object AppData {
         isListening = false
     }
 
-    // ─── Data Loading (Real‑time) ────────────────────────────────────────────
-
     fun loadData() {
+        val role = currentUser.value?.role ?: return
+
         if (!isListening) {
-            val role = currentUser.value?.role ?: return
+            children.clear()
+            alerts.clear()
+
             FirebaseRepository.startListeningToChildren(role) { updatedChildren ->
                 children.clear()
                 children.addAll(updatedChildren)
             }
+
+            FirebaseRepository.startListeningToAlerts(role) { updatedAlerts ->
+                alerts.clear()
+                alerts.addAll(updatedAlerts)
+            }
+
             isListening = true
         }
-
-        scope.launch {
-            val loadedAlerts = FirebaseRepository.loadAlerts()
-            alerts.clear()
-            alerts.addAll(loadedAlerts)
-        }
     }
-
-    // ─── Children ─────────────────────────────────────────────────────────────
 
     suspend fun addChild(
         fullName: String,
@@ -181,13 +193,13 @@ object AppData {
         gender: String,
         imageUri: Uri? = null
     ): Child {
-        // Create temporary child to get ID
         val tempChild = Child(
             fullName = fullName,
             dateOfBirth = dob,
             gender = gender,
             parentId = currentUser.value?.id
         )
+
         val addResult = FirebaseRepository.addChild(tempChild)
         val childId = addResult.getOrNull() ?: return tempChild
 
@@ -199,8 +211,8 @@ object AppData {
             }
         }
 
-        // Update the child document with photoUrl
         val finalChild = tempChild.copy(id = childId, photoUrl = photoUrl)
+
         FirebaseRepository.db.collection("children")
             .document(childId)
             .update("photoUrl", photoUrl)
@@ -214,25 +226,24 @@ object AppData {
         FirebaseRepository.deleteAlertsForChild(childId)
     }
 
-    fun getChild(childId: String): Child? = children.find { it.id == childId }
+    fun getChild(childId: String): Child? =
+        children.find { it.id == childId }
 
     fun childrenNeedingAttention(): Int =
         children.count { it.bmiStatus != "Normal" && it.bmiStatus != "No Data" }
 
-    // ─── BMI ──────────────────────────────────────────────────────────────────
-
     fun calculateBmi(heightCm: Double, weightKg: Double): Double {
         if (heightCm <= 0) return 0.0
         val h = heightCm / 100.0
-        return Math.round((weightKg / (h * h)) * 10.0) / 10.0
+        return ((weightKg / (h * h)) * 10.0).roundToInt() / 10.0
     }
 
     fun bmiStatus(bmi: Double): String = when {
-        bmi <= 0   -> "No Data"
+        bmi <= 0 -> "No Data"
         bmi < 16.0 -> "Underweight"
         bmi < 25.0 -> "Normal"
         bmi < 30.0 -> "Overweight"
-        else       -> "Obese"
+        else -> "Obese"
     }
 
     suspend fun addBmiRecord(
@@ -252,31 +263,57 @@ object AppData {
             notes = notes,
             recordedBy = currentUser.value?.fullName ?: "BHW"
         )
+
         val result = FirebaseRepository.addBmiRecord(childId, record)
         val newRecord = record.copy(id = result.getOrNull() ?: "")
-        // Optimistic local update for immediate feedback
+
         val index = children.indexOfFirst { it.id == childId }
         if (index >= 0) {
             val updatedHistory = children[index].bmiHistory.toMutableList()
-            updatedHistory.add(newRecord)
+            updatedHistory.add(0, newRecord)
             children[index] = children[index].copy(bmiHistory = updatedHistory)
         }
     }
 
-    // ─── Alerts ───────────────────────────────────────────────────────────────
-
-    suspend fun sendAlert(childIds: List<String>, alertType: String, message: String) {
+    suspend fun sendAlert(
+        childIds: List<String>,
+        alertType: String,
+        message: String
+    ): Boolean {
         val date = SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(Date())
+        var allSuccess = true
+
         childIds.forEach { childId ->
             val alert = StatusAlert(
                 childId = childId,
                 alertType = alertType,
                 message = message,
                 sentBy = currentUser.value?.fullName ?: "BHW",
-                date = date
+                date = date,
+                timestamp = Timestamp.now()
             )
+
             val result = FirebaseRepository.sendAlert(alert)
-            alerts.add(alert.copy(id = result.getOrNull() ?: ""))
+
+            if (result.isSuccess) {
+                val savedAlert = alert.copy(id = result.getOrNull() ?: "")
+                if (alerts.none { it.id == savedAlert.id && savedAlert.id.isNotBlank() }) {
+                    alerts.add(0, savedAlert)
+                }
+            } else {
+                allSuccess = false
+            }
+        }
+
+        return allSuccess
+    }
+
+    fun getAlertsForCurrentParent(): List<StatusAlert> {
+        val parentId = currentUser.value?.id ?: return emptyList()
+
+        return alerts.filter { alert ->
+            val child = getChild(alert.childId)
+            child?.parentId == parentId
         }
     }
 

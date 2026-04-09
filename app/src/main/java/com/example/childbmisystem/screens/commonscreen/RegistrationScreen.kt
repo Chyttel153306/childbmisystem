@@ -1,4 +1,4 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.commonscreen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

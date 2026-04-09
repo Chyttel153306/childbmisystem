@@ -2,6 +2,7 @@ package com.example.childbmisystem.data
 
 import android.net.Uri
 import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -18,14 +19,20 @@ object FirebaseRepository {
 
     private const val TAG = "FirebaseRepository"
 
-    val auth: FirebaseAuth get() = FirebaseAuth.getInstance()
-    val db: FirebaseFirestore get() = FirebaseFirestore.getInstance()
-    val storage: FirebaseStorage get() = FirebaseStorage.getInstance()
+    val auth: FirebaseAuth
+        get() = FirebaseAuth.getInstance()
+
+    val db: FirebaseFirestore
+        get() = FirebaseFirestore.getInstance()
+
+    val storage: FirebaseStorage
+        get() = FirebaseStorage.getInstance()
 
     val currentUid: String?
         get() = auth.currentUser?.uid
 
     private var childrenListener: ListenerRegistration? = null
+    private var alertsListener: ListenerRegistration? = null
 
     // ───────────────── AUTH ─────────────────
 
@@ -48,6 +55,7 @@ object FirebaseRepository {
 
     fun logout() {
         stopListeningToChildren()
+        stopListeningToAlerts()
         auth.signOut()
     }
 
@@ -105,7 +113,7 @@ object FirebaseRepository {
         address = getString("address") ?: ""
     )
 
-    // ───────────────── CHILDREN (REAL‑TIME) ─────────────────
+    // ───────────────── CHILDREN (REAL-TIME) ─────────────────
 
     fun startListeningToChildren(role: String, onChildrenChanged: (List<Child>) -> Unit) {
         stopListeningToChildren()
@@ -139,6 +147,7 @@ object FirebaseRepository {
                     val records = loadBmiRecords(child.id)
                     child.copy(bmiHistory = records.toMutableList())
                 }
+
                 withContext(Dispatchers.Main) {
                     onChildrenChanged(childrenWithHistory)
                 }
@@ -152,7 +161,9 @@ object FirebaseRepository {
     }
 
     suspend fun addChild(child: Child): Result<String> = try {
-        val ref = db.collection("children").add(child.toMap()).await()
+        val ref = db.collection("children")
+            .add(child.toMap())
+            .await()
         Result.success(ref.id)
     } catch (e: Exception) {
         Log.e(TAG, "Add child failed", e)
@@ -198,7 +209,8 @@ object FirebaseRepository {
             .orderBy("timestamp", Query.Direction.DESCENDING)
             .get()
             .await()
-            .documents.map { doc ->
+            .documents
+            .map { doc ->
                 BmiRecord(
                     id = doc.id,
                     date = doc.getString("date") ?: "",
@@ -227,10 +239,77 @@ object FirebaseRepository {
         Result.failure(e)
     }
 
-    // ───────────────── ALERTS ─────────────────
+    // ───────────────── ALERTS (REAL-TIME) ─────────────────
+
+    fun startListeningToAlerts(role: String, onAlertsChanged: (List<StatusAlert>) -> Unit) {
+        stopListeningToAlerts()
+
+        alertsListener = db.collection("alerts")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Listen to alerts failed", error)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot == null) return@addSnapshotListener
+
+                val allAlerts = snapshot.documents.map { doc ->
+                    StatusAlert(
+                        id = doc.id,
+                        childId = doc.getString("childId") ?: "",
+                        alertType = doc.getString("alertType") ?: "",
+                        message = doc.getString("message") ?: "",
+                        sentBy = doc.getString("sentBy") ?: "",
+                        date = doc.getString("date") ?: "",
+                        timestamp = doc.getTimestamp("timestamp") ?: Timestamp.now()
+                    )
+                }
+
+                if (role.equals("bhw", ignoreCase = true)) {
+                    onAlertsChanged(allAlerts)
+                } else {
+                    val uid = currentUid
+                    if (uid == null) {
+                        onAlertsChanged(emptyList())
+                        return@addSnapshotListener
+                    }
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val myChildrenIds = db.collection("children")
+                                .whereEqualTo("parentId", uid)
+                                .get()
+                                .await()
+                                .documents
+                                .map { it.id }
+                                .toSet()
+
+                            val filteredAlerts = allAlerts.filter { it.childId in myChildrenIds }
+
+                            withContext(Dispatchers.Main) {
+                                onAlertsChanged(filteredAlerts)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Filter parent alerts failed", e)
+                            withContext(Dispatchers.Main) {
+                                onAlertsChanged(emptyList())
+                            }
+                        }
+                    }
+                }
+            }
+    }
+
+    fun stopListeningToAlerts() {
+        alertsListener?.remove()
+        alertsListener = null
+    }
 
     suspend fun sendAlert(alert: StatusAlert): Result<String> = try {
-        val ref = db.collection("alerts").add(alert.toMap()).await()
+        val ref = db.collection("alerts")
+            .add(alert.toMap())
+            .await()
         Result.success(ref.id)
     } catch (e: Exception) {
         Log.e(TAG, "Send alert failed", e)
@@ -239,17 +318,19 @@ object FirebaseRepository {
 
     suspend fun loadAlerts(): List<StatusAlert> = try {
         db.collection("alerts")
-            .orderBy("date", Query.Direction.DESCENDING)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
             .get()
             .await()
-            .documents.map { doc ->
+            .documents
+            .map { doc ->
                 StatusAlert(
                     id = doc.id,
                     childId = doc.getString("childId") ?: "",
                     alertType = doc.getString("alertType") ?: "",
                     message = doc.getString("message") ?: "",
                     sentBy = doc.getString("sentBy") ?: "",
-                    date = doc.getString("date") ?: ""
+                    date = doc.getString("date") ?: "",
+                    timestamp = doc.getTimestamp("timestamp") ?: Timestamp.now()
                 )
             }
     } catch (e: Exception) {
@@ -262,6 +343,7 @@ object FirebaseRepository {
             .whereEqualTo("childId", childId)
             .get()
             .await()
+
         snap.documents.forEach { it.reference.delete().await() }
         Result.success(Unit)
     } catch (e: Exception) {

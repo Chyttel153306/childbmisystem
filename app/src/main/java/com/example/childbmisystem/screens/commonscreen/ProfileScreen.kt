@@ -1,4 +1,4 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.commonscreen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -82,7 +83,7 @@ fun ProfileScreen(navController: NavController) {
                     Text(
                         "My Profile",
                         fontSize = 20.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontWeight = FontWeight.Bold,
                         color = AppTextPrimary
                     )
 
@@ -132,7 +133,7 @@ fun ProfileScreen(navController: NavController) {
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     "Log Out",
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp
                                 )
                             }
@@ -181,7 +182,7 @@ fun ProfileScreen(navController: NavController) {
                             Text(
                                 displayName,
                                 fontSize = 20.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                fontWeight = FontWeight.Bold,
                                 color = AppTextPrimary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -196,7 +197,7 @@ fun ProfileScreen(navController: NavController) {
                                         roleLabel,
                                         color = pillText,
                                         fontSize = 12.sp,
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }

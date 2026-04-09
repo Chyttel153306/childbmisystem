@@ -1,5 +1,6 @@
-package com.example.childbmisystem.screens
+package com.example.childbmisystem.screens.bhwscreen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -179,7 +180,7 @@ fun ViewChildProfileScreen(navController: NavController, childId: String) {
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = Color.Black // Black text when not tapped
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
+                    border = BorderStroke(1.dp, Color(0xFFE0E0E0))
                 ) {
                     Text("History", fontWeight = FontWeight.Bold)
                 }

@@ -10,9 +10,20 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.data.FirebaseRepository
-import com.example.childbmisystem.screens.*
+import com.example.childbmisystem.screens.bhwscreen.BhwDashboardScreen
+import com.example.childbmisystem.screens.parentscreen.ChildHistoryScreen
+import com.example.childbmisystem.screens.bhwscreen.DeleteChildProfileScreen
+import com.example.childbmisystem.screens.bhwscreen.SendStatusAlertScreen
+import com.example.childbmisystem.screens.bhwscreen.UpdateChildProfileScreen
+import com.example.childbmisystem.screens.commonscreen.LoginScreen
+import com.example.childbmisystem.screens.commonscreen.ProfileScreen
+import com.example.childbmisystem.screens.commonscreen.RegistrationScreen
+import com.example.childbmisystem.screens.bhwscreen.ViewChildProfileScreen
+import com.example.childbmisystem.screens.parentscreen.CreateChildProfileScreen
+import com.example.childbmisystem.screens.parentscreen.ParentDashboardScreen
 
 object Routes {
+
     const val LOGIN = "login"
     const val REGISTER = "register"
 
