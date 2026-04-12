@@ -38,7 +38,8 @@ data class BmiRecord(
     val bmi: Double = 0.0,
     val status: String = "",
     val notes: String = "",
-    val recordedBy: String = ""
+    val recordedBy: String = "",
+    val photoUrl: String = ""
 ) {
     fun toMap() = mapOf(
         "date" to date,
@@ -48,7 +49,8 @@ data class BmiRecord(
         "status" to status,
         "notes" to notes,
         "recordedBy" to recordedBy,
-        "timestamp" to Timestamp.now()
+        "timestamp" to Timestamp.now(),
+        "photoUrl" to photoUrl
     )
 }
 
@@ -101,7 +103,7 @@ data class StatusAlert(
         "message" to message,
         "sentBy" to sentBy,
         "date" to date,
-        "timestamp" to timestamp
+        "timestamp" to timestamp,
     )
 }
 
@@ -251,7 +253,8 @@ object AppData {
         heightCm: Double,
         weightKg: Double,
         notes: String,
-        date: String
+        date: String,
+        imageUri: Uri? = null                           // ← new optional param
     ) {
         val bmi = calculateBmi(heightCm, weightKg)
         val record = BmiRecord(
@@ -265,7 +268,23 @@ object AppData {
         )
 
         val result = FirebaseRepository.addBmiRecord(childId, record)
-        val newRecord = record.copy(id = result.getOrNull() ?: "")
+        val recordId = result.getOrNull() ?: ""
+
+        // ── Upload photo and patch Firestore record if a Uri was given
+        var photoUrl = ""
+        if (imageUri != null && recordId.isNotBlank()) {
+            val uploadResult = FirebaseRepository.uploadBmiPhoto(childId, recordId, imageUri)
+            if (uploadResult.isSuccess) {
+                photoUrl = uploadResult.getOrNull() ?: ""
+                FirebaseRepository.db
+                    .collection("children").document(childId)
+                    .collection("bmiRecords").document(recordId)
+                    .update("photoUrl", photoUrl)
+                    .await()
+            }
+        }
+
+        val newRecord = record.copy(id = recordId, photoUrl = photoUrl)
 
         val index = children.indexOfFirst { it.id == childId }
         if (index >= 0) {

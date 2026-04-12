@@ -1,6 +1,9 @@
 package com.example.childbmisystem.screens.parentscreen
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,9 +50,21 @@ fun CreateChildProfileScreen(navController: NavController) {
     val genderOptions = listOf("Male", "Female", "Other")
 
     var isLoading by remember { mutableStateOf(false) }
-    var proofUploaded by remember { mutableStateOf(false) }
 
-    // Live BMI Calculation
+    // Photo state
+    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Image picker — opens phone gallery
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedPhotoUri = uri
+        if (uri != null) {
+            Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Live BMI — AppData.calculateBmi returns Double directly
     val hVal = height.toDoubleOrNull() ?: 0.0
     val wVal = weight.toDoubleOrNull() ?: 0.0
     val liveBmi = remember(hVal, wVal) { AppData.calculateBmi(hVal, wVal) }
@@ -145,15 +161,12 @@ fun CreateChildProfileScreen(navController: NavController) {
                                     ),
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
-
                                 TextField(
                                     value = gender,
                                     onValueChange = {},
                                     readOnly = true,
                                     trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = genderExpanded
-                                        )
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = genderExpanded)
                                     },
                                     colors = TextFieldDefaults.colors(
                                         focusedTextColor = Color.Black,
@@ -167,7 +180,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
-                                        .menuAnchor()
+                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
                                         .fillMaxWidth()
                                 )
                             }
@@ -179,15 +192,8 @@ fun CreateChildProfileScreen(navController: NavController) {
                             ) {
                                 genderOptions.forEach { option ->
                                     DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = option,
-                                                color = Color.Black
-                                            )
-                                        },
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = Color.Black
-                                        ),
+                                        text = { Text(text = option, color = Color.Black) },
+                                        colors = MenuDefaults.itemColors(textColor = Color.Black),
                                         onClick = {
                                             gender = option
                                             genderExpanded = false
@@ -237,7 +243,6 @@ fun CreateChildProfileScreen(navController: NavController) {
                             modifier = Modifier.weight(1f),
                             backgroundColor = inputBackgroundColor
                         )
-
                         FormInputField(
                             label = "Weight (kg)",
                             placeholder = "Enter weight",
@@ -249,7 +254,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                         )
                     }
 
-                    // Live BMI Display
+                    // Live BMI Display — liveBmi is already a Double
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -257,14 +262,14 @@ fun CreateChildProfileScreen(navController: NavController) {
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "BMI: $liveBmi",
+                            text = "BMI: $liveBmi  •  ${AppData.bmiStatus(liveBmi)}",
                             color = Color(0xFF4285F4),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp
                         )
                     }
 
-                    // --- Upload / Photo Buttons ---
+                    // --- Upload Photo Button ---
                     Text(
                         text = "Add Proof / Photo",
                         fontWeight = FontWeight.SemiBold,
@@ -272,35 +277,34 @@ fun CreateChildProfileScreen(navController: NavController) {
                         color = Color.Black
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    OutlinedButton(
+                        onClick = { photoPickerLauncher.launch("image/*") },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                     ) {
-                        OutlinedButton(
-                            onClick = { proofUploaded = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                        ) {
+                        if (selectedPhotoUri != null) {
                             Icon(
-                                imageVector = Icons.Filled.FileUpload,
-                                contentDescription = "Upload"
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = "Photo Selected",
+                                tint = primaryGreen
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Upload")
-                        }
-
-                        OutlinedButton(
-                            onClick = { proofUploaded = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                        ) {
-                            Text("📷 Photo")
+                            Text(
+                                "Photo Selected",
+                                color = primaryGreen,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = "Upload Photo"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Upload Photo")
                         }
                     }
                 }
@@ -329,21 +333,31 @@ fun CreateChildProfileScreen(navController: NavController) {
 
                     scope.launch {
                         try {
+                            // Step 1: Build dob string from age
                             val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-                            val birthYear = currentYear - ageInt
-                            val dob = "01-01-$birthYear"
+                            val dob = "01-01-${currentYear - ageInt}"
 
+                            // Step 2: AppData.addChild handles:
+                            //   → FirebaseRepository.addChild (creates Firestore doc, returns childId)
+                            //   → FirebaseRepository.uploadChildPhoto (uploads to Storage if uri given)
+                            //   → updates "photoUrl" field on the child document
                             val child = AppData.addChild(
                                 fullName = name,
                                 dob = dob,
-                                gender = gender
+                                gender = gender,
+                                imageUri = selectedPhotoUri  // null = no photo, Uri = upload
                             )
 
+                            // Step 3: AppData.addBmiRecord handles:
+                            //   → AppData.calculateBmi (Double)
+                            //   → AppData.bmiStatus (String)
+                            //   → FirebaseRepository.addBmiRecord (saves to children/$id/bmiRecords)
+                            //   → updates local AppData.children list
                             AppData.addBmiRecord(
                                 childId = child.id,
                                 heightCm = h,
                                 weightKg = w,
-                                notes = if (proofUploaded) "Proof Uploaded" else "",
+                                notes = address,         // address saved as notes
                                 date = AppData.getCurrentDate()
                             )
 
@@ -351,8 +365,9 @@ fun CreateChildProfileScreen(navController: NavController) {
                             navController.popBackStack()
 
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Error saving data", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
+
                         isLoading = false
                     }
                 },
@@ -361,7 +376,8 @@ fun CreateChildProfileScreen(navController: NavController) {
                     .padding(bottom = 24.dp)
                     .height(55.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = primaryGreen),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isLoading
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(

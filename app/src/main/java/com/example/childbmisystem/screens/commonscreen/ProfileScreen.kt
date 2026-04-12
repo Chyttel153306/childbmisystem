@@ -26,11 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.navigation.Routes
-import com.example.childbmisystem.ui.theme.components.AppBg
-import com.example.childbmisystem.ui.theme.components.AppCardBg
-import com.example.childbmisystem.ui.theme.components.AppCardBorder
-import com.example.childbmisystem.ui.theme.components.AppTextPrimary
-import com.example.childbmisystem.ui.theme.components.AppTextSecondary
+import com.example.childbmisystem.ui.theme.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -39,22 +35,19 @@ fun ProfileScreen(navController: NavController) {
     val user = AppData.currentUser.value
     val isBhw = user?.role.equals("BHW", ignoreCase = true)
 
-    val displayName = user?.fullName?.ifBlank { if (isBhw) "Maria C. Reyes" else "Ana D. Santos" }
-        ?: if (isBhw) "Maria C. Reyes" else "Ana D. Santos"
-    val displayAddress = user?.address?.ifBlank { if (isBhw) "Brgy. San Jose, Manila" else "Brgy. Santa Cruz, QC" }
-        ?: if (isBhw) "Brgy. San Jose, Manila" else "Brgy. Santa Cruz, QC"
-
-    val pillBg = if (isBhw) Color(0xFFE0EAFF) else Color(0xFFF5F3FF)
-    val pillText = if (isBhw) Color(0xFF444CE7) else Color(0xFF7C3AED)
+    // No fake data – use actual user values (or empty if null)
+    val displayName = user?.fullName ?: ""
+    val displayAddress = user?.address ?: ""
     val roleLabel = if (isBhw) "Barangay Health Worker" else "Parent / Guardian"
     val roleIcon = if (isBhw) Icons.Default.HomeWork else Icons.Default.Person
+    val pillBg = if (isBhw) Color(0xFFE0EAFF) else Color(0xFFF5F3FF)
+    val pillText = if (isBhw) Color(0xFF444CE7) else Color(0xFF7C3AED)
 
     val scrollState = rememberScrollState()
     var isLoggingOut by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize()) {
-
         Scaffold(
             containerColor = AppBg,
             topBar = {
@@ -100,7 +93,7 @@ fun ProfileScreen(navController: NavController) {
                         onClick = {
                             scope.launch {
                                 isLoggingOut = true
-                                delay(500) // simulate network delay
+                                delay(500)
                                 AppData.logout()
                                 isLoggingOut = false
                                 navController.navigate(Routes.LOGIN) { popUpTo(0) }
@@ -150,72 +143,85 @@ fun ProfileScreen(navController: NavController) {
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = AppCardBg),
+                // ── Profile Picture (below "My Profile" title)
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, AppCardBorder, RoundedCornerShape(24.dp))
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEEF2FF))
+                        .border(2.dp, Color.White, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = "Profile Picture",
+                        tint = Color(0xFF444CE7),
+                        modifier = Modifier.size(56.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── UserName (optional, but good to show)
+                Text(
+                    text = displayName.ifBlank { "User" },
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── Container for Parent/Guardian (Role)
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = pillBg),
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .border(1.dp, pillText.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
                 ) {
                     Row(
-                        modifier = Modifier.padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFEEF2FF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = Color(0xFF444CE7),
-                                modifier = Modifier.size(40.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Column {
-                            Text(
-                                displayName,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AppTextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Surface(shape = RoundedCornerShape(50.dp), color = pillBg) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(roleIcon, contentDescription = null, tint = pillText, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        roleLabel,
-                                        color = pillText,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.LocationOn,
-                                    contentDescription = null,
-                                    tint = Color(0xFFF44336),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(displayAddress, color = AppTextSecondary, fontSize = 13.sp)
-                            }
-                        }
+                        Icon(roleIcon, contentDescription = null, tint = pillText, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = roleLabel,
+                            color = pillText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // ── Location (below the container)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .background(AppCardBg, RoundedCornerShape(30.dp))
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = Color(0xFFF44336),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = displayAddress.ifBlank { "Address not set" },
+                        color = AppTextSecondary,
+                        fontSize = 14.sp
+                    )
+                }
+
+                // Additional spacer for bottom padding
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }

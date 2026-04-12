@@ -1,24 +1,30 @@
 package com.example.childbmisystem.screens.parentscreen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.data.BmiRecord
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,8 +39,8 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
         return
     }
 
-    val history = child.bmiHistory.reversed()
-    val greenStatus = Color(0xFF00C853)
+    val history = child.bmiHistory
+    val solidGreen = Color(0xFF00C853)
 
     Scaffold(
         topBar = {
@@ -69,7 +75,7 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
             item {
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    colors = CardDefaults.cardColors(containerColor = solidGreen),
                     elevation = CardDefaults.cardElevation(0.dp)
                 ) {
                     Row(
@@ -81,12 +87,16 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
                         Text("📈", fontSize = 24.sp)
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text("Total Records", fontSize = 12.sp, color = Color.Black)
+                            Text(
+                                "Total Records",
+                                fontSize = 12.sp,
+                                color = Color.White
+                            )
                             Text(
                                 "${history.size}",
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = greenStatus
+                                color = Color.White
                             )
                         }
                     }
@@ -126,6 +136,11 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
 private fun HistoryCard(record: BmiRecord) {
     val sc = statusColor(record.status)
 
+    val photoUrl = record.notes.takeIf { it.startsWith("http") }
+    val noteText = record.notes.takeIf { !it.startsWith("http") }
+
+    var showPhotoDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -133,6 +148,8 @@ private fun HistoryCard(record: BmiRecord) {
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
+
+            // Date + Status
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -167,6 +184,7 @@ private fun HistoryCard(record: BmiRecord) {
             HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEEEEE))
             Spacer(Modifier.height(10.dp))
 
+            // Height / Weight / BMI
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -176,18 +194,91 @@ private fun HistoryCard(record: BmiRecord) {
                 RecordStat("BMI", "${record.bmi}")
             }
 
-            if (record.notes.isNotBlank() || record.recordedBy.isNotBlank()) {
+            // Notes (if not a URL)
+            if (!noteText.isNullOrBlank()) {
                 Spacer(Modifier.height(10.dp))
-                if (record.notes.isNotBlank()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Notes:", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
-                        Text(record.notes, fontSize = 12.sp, color = Color.Black)
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "Notes:",
+                        fontSize = 12.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(noteText, fontSize = 12.sp, color = Color.Black)
                 }
-                if (record.recordedBy.isNotBlank()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("By:", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
-                        Text(record.recordedBy, fontSize = 12.sp, color = Color.Black)
+            }
+
+            // "By:" row
+            if (record.recordedBy.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "By:",
+                        fontSize = 12.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(record.recordedBy, fontSize = 12.sp, color = Color.Black)
+                }
+            }
+
+            // ── "View Photo" label (only if photo exists)
+            if (!photoUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEEEEE))
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showPhotoDialog = true }
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.DateRange, // using a photo icon would be better but keep simple
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF2196F3)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "View Photo",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF2196F3)
+                    )
+                }
+
+                // Dialog to show full photo
+                if (showPhotoDialog) {
+                    Dialog(onDismissRequest = { showPhotoDialog = false }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.9f))
+                                .clickable { showPhotoDialog = false }
+                        ) {
+                            AsyncImage(
+                                model = photoUrl,
+                                contentDescription = "Full size photo",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            IconButton(
+                                onClick = { showPhotoDialog = false },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(16.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = Color.White
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -1,5 +1,9 @@
 package com.example.childbmisystem.screens.bhwscreen
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -7,11 +11,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,6 +30,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun UpdateChildProfileScreen(navController: NavController, childId: String) {
 
+    val context = LocalContext.current
     val child = AppData.getChild(childId)
 
     if (child == null) {
@@ -38,6 +46,14 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
     var notes by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedPhotoUri = uri
+        if (uri != null) Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+    }
 
     val scope = rememberCoroutineScope()
     val green = Color(0xFF00C853)
@@ -85,8 +101,7 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(child.fullName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
-                    Text("${child.ageYears} years old • ${child.gender}",
-                        fontSize = 13.sp, color = Color.Black)
+                    Text("${child.ageYears} years old • ${child.gender}", fontSize = 13.sp, color = Color.Black)
                 }
             }
 
@@ -134,20 +149,24 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                     color = green, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
 
-            Text("Update BMI Proof", fontWeight = FontWeight.SemiBold, color = Color.Black)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                ) { Text("⬆ Upload") }
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-                ) { Text("📷 Photo") }
+            // ── Single Upload Photo button (replaces old two-button row)
+            Text("Add Proof / Photo", fontWeight = FontWeight.SemiBold, color = Color.Black)
+            OutlinedButton(
+                onClick = { photoPickerLauncher.launch("image/*") },
+                enabled = !isLoading,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
+            ) {
+                if (selectedPhotoUri != null) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = green)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Photo Selected", color = green, fontWeight = FontWeight.SemiBold)
+                } else {
+                    Icon(Icons.Filled.FileUpload, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Upload Photo")
+                }
             }
 
             Text("Notes", fontWeight = FontWeight.SemiBold, color = Color.Black)
@@ -184,7 +203,14 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                             val w = weightKg.toDoubleOrNull() ?: 0.0
                             if (h > 0 && w > 0) {
                                 isLoading = true
-                                AppData.addBmiRecord(childId, h, w, notes, AppData.getCurrentDate())
+                                AppData.addBmiRecord(
+                                    childId = childId,
+                                    heightCm = h,
+                                    weightKg = w,
+                                    notes = notes,
+                                    date = AppData.getCurrentDate(),
+                                    imageUri = selectedPhotoUri      // ← pass the photo
+                                )
                                 isLoading = false
                                 saved = true
                             }

@@ -200,6 +200,18 @@ object FirebaseRepository {
         Result.success(Unit)
     }
 
+    // ───────────────── BMI PHOTO UPLOAD ─────────────────
+
+    suspend fun uploadBmiPhoto(childId: String, recordId: String, imageUri: Uri): Result<String> = try {
+        val storageRef = storage.reference.child("bmi_photos/$childId/$recordId.jpg")
+        storageRef.putFile(imageUri).await()
+        val downloadUrl = storageRef.downloadUrl.await()
+        Result.success(downloadUrl.toString())
+    } catch (e: Exception) {
+        Log.e(TAG, "Upload BMI photo failed", e)
+        Result.failure(e)
+    }
+
     // ───────────────── BMI RECORDS ─────────────────
 
     suspend fun loadBmiRecords(childId: String): List<BmiRecord> = try {
@@ -219,7 +231,8 @@ object FirebaseRepository {
                     bmi = doc.getDouble("bmi") ?: 0.0,
                     status = doc.getString("status") ?: "",
                     notes = doc.getString("notes") ?: "",
-                    recordedBy = doc.getString("recordedBy") ?: ""
+                    recordedBy = doc.getString("recordedBy") ?: "",
+                    photoUrl = doc.getString("photoUrl") ?: ""
                 )
             }
     } catch (e: Exception) {
