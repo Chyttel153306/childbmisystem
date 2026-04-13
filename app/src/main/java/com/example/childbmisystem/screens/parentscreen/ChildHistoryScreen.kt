@@ -10,11 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -40,7 +40,7 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
     }
 
     val history = child.bmiHistory
-    val solidGreen = Color(0xFF00C853)
+    val solidGreen = Color(0xFF4CAF50)
 
     Scaffold(
         topBar = {
@@ -49,7 +49,7 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
                     Column {
                         Text("Child History", fontWeight = FontWeight.Bold, color = Color.Black)
                         Text(
-                            "${child.fullName} • ${child.ageYears} yrs old",
+                            "${child.fullName} • ${child.ageMonths} Months Old",
                             fontSize = 12.sp,
                             color = Color.Black
                         )
@@ -87,11 +87,7 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
                         Text("📈", fontSize = 24.sp)
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(
-                                "Total Records",
-                                fontSize = 12.sp,
-                                color = Color.White
-                            )
+                            Text("Total Records", fontSize = 12.sp, color = Color.White)
                             Text(
                                 "${history.size}",
                                 fontSize = 28.sp,
@@ -135,11 +131,10 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
 @Composable
 private fun HistoryCard(record: BmiRecord) {
     val sc = statusColor(record.status)
-
-    val photoUrl = record.notes.takeIf { it.startsWith("http") }
-    val noteText = record.notes.takeIf { !it.startsWith("http") }
-
     var showPhotoDialog by remember { mutableStateOf(false) }
+
+    // ── Use record.photoUrl directly ────────────────────────────────────────
+    val hasPhoto = record.photoUrl.isNotBlank()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -157,15 +152,13 @@ private fun HistoryCard(record: BmiRecord) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.DateRange,
-                        null,
+                        Icons.Default.DateRange, null,
                         tint = Color.Black,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(record.date, fontWeight = FontWeight.SemiBold, color = Color.Black)
                 }
-
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = sc.copy(alpha = 0.15f)
@@ -194,92 +187,75 @@ private fun HistoryCard(record: BmiRecord) {
                 RecordStat("BMI", "${record.bmi}")
             }
 
-            // Notes (if not a URL)
-            if (!noteText.isNullOrBlank()) {
+            // Notes
+            if (record.notes.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "Notes:",
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(noteText, fontSize = 12.sp, color = Color.Black)
+                    Text("Notes:", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text(record.notes, fontSize = 12.sp, color = Color.Black)
                 }
             }
 
-            // "By:" row
+            // Recorded by
             if (record.recordedBy.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "By:",
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("By:", fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
                     Text(record.recordedBy, fontSize = 12.sp, color = Color.Black)
                 }
             }
 
-            // ── "View Photo" label (only if photo exists)
-            if (!photoUrl.isNullOrBlank()) {
-                Spacer(Modifier.height(10.dp))
+            // ── View Photo Button (only shown if photoUrl exists) ───────────
+            if (hasPhoto) {
+                Spacer(Modifier.height(12.dp))
                 HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEEEEE))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showPhotoDialog = true }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                Button(
+                    onClick = { showPhotoDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50),
+                        contentColor = Color.White
+                    )
                 ) {
                     Icon(
-                        Icons.Default.DateRange, // using a photo icon would be better but keep simple
+                        Icons.Default.Image,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = Color(0xFF2196F3)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "View Photo",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF2196F3)
-                    )
+                    Text("View Photo", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
+            }
+        }
+    }
 
-                // Dialog to show full photo
-                if (showPhotoDialog) {
-                    Dialog(onDismissRequest = { showPhotoDialog = false }) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.9f))
-                                .clickable { showPhotoDialog = false }
-                        ) {
-                            AsyncImage(
-                                model = photoUrl,
-                                contentDescription = "Full size photo",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            IconButton(
-                                onClick = { showPhotoDialog = false },
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(16.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = Color.White
-                                )
-                            }
-                        }
-                    }
+    // ── Full-screen photo dialog ────────────────────────────────────────────
+    if (showPhotoDialog) {
+        Dialog(onDismissRequest = { showPhotoDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.95f))
+                    .clickable { showPhotoDialog = false }
+            ) {
+                AsyncImage(
+                    model = record.photoUrl,
+                    contentDescription = "Proof photo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.Center)
+                )
+                IconButton(
+                    onClick = { showPhotoDialog = false },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                 }
             }
         }
@@ -295,9 +271,9 @@ private fun RecordStat(label: String, value: String) {
 }
 
 private fun statusColor(status: String) = when (status) {
-    "Normal" -> Color(0xFF4CAF50)
-    "Overweight" -> Color(0xFFFF9800)
+    "Normal"      -> Color(0xFF4CAF50)
+    "Overweight"  -> Color(0xFFFF9800)
     "Underweight" -> Color(0xFFF44336)
-    "Obese" -> Color(0xFF9C27B0)
-    else -> Color.Gray
+    "Obese"       -> Color(0xFF9C27B0)
+    else          -> Color.Gray
 }

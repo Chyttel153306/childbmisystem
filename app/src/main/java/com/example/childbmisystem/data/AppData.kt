@@ -69,6 +69,7 @@ data class Child(
     val bmiStatus: String
         get() = latestBmi?.status ?: "No Data"
 
+    // ── Age in whole years (used internally) ────────────────────────────
     val ageYears: Int
         get() = try {
             val parts = dateOfBirth.split("-")
@@ -78,6 +79,10 @@ data class Child(
         } catch (e: Exception) {
             0
         }
+
+    // ── Age in months (ageYears * 12, used for display in Update screen) ─
+    val ageMonths: Int
+        get() = ageYears * 12
 
     fun toMap() = mapOf(
         "fullName" to fullName,
@@ -241,11 +246,11 @@ object AppData {
     }
 
     fun bmiStatus(bmi: Double): String = when {
-        bmi <= 0 -> "No Data"
+        bmi <= 0   -> "No Data"
         bmi < 16.0 -> "Underweight"
         bmi < 25.0 -> "Normal"
         bmi < 30.0 -> "Overweight"
-        else -> "Obese"
+        else       -> "Obese"
     }
 
     suspend fun addBmiRecord(
@@ -254,7 +259,7 @@ object AppData {
         weightKg: Double,
         notes: String,
         date: String,
-        imageUri: Uri? = null                           // ← new optional param
+        imageUri: Uri? = null
     ) {
         val bmi = calculateBmi(heightCm, weightKg)
         val record = BmiRecord(
@@ -270,7 +275,6 @@ object AppData {
         val result = FirebaseRepository.addBmiRecord(childId, record)
         val recordId = result.getOrNull() ?: ""
 
-        // ── Upload photo and patch Firestore record if a Uri was given
         var photoUrl = ""
         if (imageUri != null && recordId.isNotBlank()) {
             val uploadResult = FirebaseRepository.uploadBmiPhoto(childId, recordId, imageUri)
@@ -294,6 +298,55 @@ object AppData {
         }
     }
 
+    // ── Update child's personal info (age stored as months) ────────────────
+    suspend fun updateChildInfo(
+        childId: String,
+        fullName: String,
+        ageMonths: Int,        // ← accepts months from UI
+        gender: String
+    ) {
+        val child = getChild(childId) ?: return
+
+        // Convert months → birth year for storage in dateOfBirth
+        val currentYear  = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        val currentMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
+        val birthYear    = currentYear - (ageMonths / 12)
+        val birthMonth   = currentMonth - (ageMonths % 12)
+            .let { if (it > currentMonth) { (currentMonth + 12 - it) } else { currentMonth - it } }
+
+        val existingParts = child.dateOfBirth.split("-")
+        val newDob = if (existingParts.size >= 3) {
+            // Keep existing day, update month and year derived from ageMonths
+            val day = existingParts[0].trim()
+            "$day-${birthMonth.toString().padStart(2, '0')}-$birthYear"
+        } else {
+            "01-${birthMonth.toString().padStart(2, '0')}-$birthYear"
+        }
+
+        val updates = mapOf(
+            "fullName"    to fullName,
+            "dateOfBirth" to newDob,
+            "gender"      to gender
+        )
+
+        // Persist to Firestore
+        FirebaseRepository.db
+            .collection("children")
+            .document(childId)
+            .update(updates)
+            .await()
+
+        // Reflect immediately in local state so UI updates without waiting for listener
+        val index = children.indexOfFirst { it.id == childId }
+        if (index >= 0) {
+            children[index] = children[index].copy(
+                fullName    = fullName,
+                dateOfBirth = newDob,
+                gender      = gender
+            )
+        }
+    }
+
     suspend fun sendAlert(
         childIds: List<String>,
         alertType: String,
@@ -304,11 +357,11 @@ object AppData {
 
         childIds.forEach { childId ->
             val alert = StatusAlert(
-                childId = childId,
+                childId   = childId,
                 alertType = alertType,
-                message = message,
-                sentBy = currentUser.value?.fullName ?: "BHW",
-                date = date,
+                message   = message,
+                sentBy    = currentUser.value?.fullName ?: "BHW",
+                date      = date,
                 timestamp = Timestamp.now()
             )
 

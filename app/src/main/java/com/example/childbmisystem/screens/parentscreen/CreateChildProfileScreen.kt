@@ -39,7 +39,7 @@ fun CreateChildProfileScreen(navController: NavController) {
 
     // Fields
     var name by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
+    var ageMonths by remember { mutableStateOf("") }   // ← now in months
     var address by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("") }
@@ -54,17 +54,14 @@ fun CreateChildProfileScreen(navController: NavController) {
     // Photo state
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Image picker — opens phone gallery
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         selectedPhotoUri = uri
-        if (uri != null) {
-            Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
-        }
+        if (uri != null) Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
     }
 
-    // Live BMI — AppData.calculateBmi returns Double directly
+    // Live BMI
     val hVal = height.toDoubleOrNull() ?: 0.0
     val wVal = weight.toDoubleOrNull() ?: 0.0
     val liveBmi = remember(hVal, wVal) { AppData.calculateBmi(hVal, wVal) }
@@ -137,11 +134,13 @@ fun CreateChildProfileScreen(navController: NavController) {
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                        // ── Age in months ───────────────────────────────────
                         FormInputField(
-                            label = "Age",
-                            placeholder = "Enter age",
-                            value = age,
-                            onValueChange = { age = it },
+                            label = "Age (months)",
+                            placeholder = "e.g. 24",
+                            value = ageMonths,
+                            onValueChange = { ageMonths = it },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f),
                             backgroundColor = inputBackgroundColor
@@ -254,7 +253,6 @@ fun CreateChildProfileScreen(navController: NavController) {
                         )
                     }
 
-                    // Live BMI Display — liveBmi is already a Double
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -269,7 +267,6 @@ fun CreateChildProfileScreen(navController: NavController) {
                         )
                     }
 
-                    // --- Upload Photo Button ---
                     Text(
                         text = "Add Proof / Photo",
                         fontWeight = FontWeight.SemiBold,
@@ -293,16 +290,9 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 tint = primaryGreen
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Photo Selected",
-                                color = primaryGreen,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Text("Photo Selected", color = primaryGreen, fontWeight = FontWeight.SemiBold)
                         } else {
-                            Icon(
-                                imageVector = Icons.Filled.FileUpload,
-                                contentDescription = "Upload Photo"
-                            )
+                            Icon(imageVector = Icons.Filled.FileUpload, contentDescription = "Upload Photo")
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Upload Photo")
                         }
@@ -315,17 +305,21 @@ fun CreateChildProfileScreen(navController: NavController) {
             // --- SAVE BUTTON ---
             Button(
                 onClick = {
-                    if (name.isBlank() || age.isBlank() || height.isBlank() || weight.isBlank()) {
+                    if (name.isBlank() || ageMonths.isBlank() || height.isBlank() || weight.isBlank()) {
                         Toast.makeText(context, "Fill all fields", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
-                    val ageInt = age.toIntOrNull()
+                    val months = ageMonths.toIntOrNull()
                     val h = height.toDoubleOrNull()
                     val w = weight.toDoubleOrNull()
 
-                    if (ageInt == null || h == null || w == null) {
-                        Toast.makeText(context, "Invalid input", Toast.LENGTH_SHORT).show()
+                    if (months == null || months <= 0) {
+                        Toast.makeText(context, "Enter a valid age in months", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (h == null || w == null) {
+                        Toast.makeText(context, "Invalid height or weight", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
@@ -333,31 +327,27 @@ fun CreateChildProfileScreen(navController: NavController) {
 
                     scope.launch {
                         try {
-                            // Step 1: Build dob string from age
-                            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-                            val dob = "01-01-${currentYear - ageInt}"
+                            // ── Convert months → approximate DOB ────────────
+                            // e.g. 24 months = 2 years back from today
+                            val cal = Calendar.getInstance()
+                            cal.add(Calendar.MONTH, -months)
+                            val dobDay   = cal.get(Calendar.DAY_OF_MONTH)
+                            val dobMonth = cal.get(Calendar.MONTH) + 1   // Calendar months are 0-based
+                            val dobYear  = cal.get(Calendar.YEAR)
+                            val dob = "%02d-%02d-%d".format(dobDay, dobMonth, dobYear)
 
-                            // Step 2: AppData.addChild handles:
-                            //   → FirebaseRepository.addChild (creates Firestore doc, returns childId)
-                            //   → FirebaseRepository.uploadChildPhoto (uploads to Storage if uri given)
-                            //   → updates "photoUrl" field on the child document
                             val child = AppData.addChild(
                                 fullName = name,
                                 dob = dob,
                                 gender = gender,
-                                imageUri = selectedPhotoUri  // null = no photo, Uri = upload
+                                imageUri = selectedPhotoUri
                             )
 
-                            // Step 3: AppData.addBmiRecord handles:
-                            //   → AppData.calculateBmi (Double)
-                            //   → AppData.bmiStatus (String)
-                            //   → FirebaseRepository.addBmiRecord (saves to children/$id/bmiRecords)
-                            //   → updates local AppData.children list
                             AppData.addBmiRecord(
                                 childId = child.id,
                                 heightCm = h,
                                 weightKg = w,
-                                notes = address,         // address saved as notes
+                                notes = address,
                                 date = AppData.getCurrentDate()
                             )
 
@@ -380,17 +370,9 @@ fun CreateChildProfileScreen(navController: NavController) {
                 enabled = !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                 } else {
-                    Text(
-                        "Create Profile",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Text("Create Profile", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
