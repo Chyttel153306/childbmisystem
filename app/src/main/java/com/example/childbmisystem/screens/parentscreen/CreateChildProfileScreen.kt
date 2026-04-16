@@ -1,6 +1,7 @@
 package com.example.childbmisystem.screens.parentscreen
 
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -52,13 +54,23 @@ fun CreateChildProfileScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
 
     // Photo state
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedEvidenceUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedEvidenceFileName by remember { mutableStateOf<String?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        selectedPhotoUri = uri
-        if (uri != null) Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            selectedEvidenceUri = it
+            selectedEvidenceFileName = it.displayName(context.contentResolver)
+            Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // Live BMI
@@ -275,7 +287,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                     )
 
                     OutlinedButton(
-                        onClick = { photoPickerLauncher.launch("image/*") },
+                        onClick = { photoPickerLauncher.launch(arrayOf("image/*")) },
                         enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -283,14 +295,20 @@ fun CreateChildProfileScreen(navController: NavController) {
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                     ) {
-                        if (selectedPhotoUri != null) {
+                        if (selectedEvidenceUri != null) {
                             Icon(
                                 imageVector = Icons.Filled.CheckCircle,
                                 contentDescription = "Photo Selected",
                                 tint = primaryGreen
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Photo Selected", color = primaryGreen, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = selectedEvidenceFileName ?: "Photo Selected",
+                                color = primaryGreen,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         } else {
                             Icon(imageVector = Icons.Filled.FileUpload, contentDescription = "Upload Photo")
                             Spacer(modifier = Modifier.width(8.dp))
@@ -340,7 +358,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 fullName = name,
                                 dob = dob,
                                 gender = gender,
-                                imageUri = selectedPhotoUri
+                                imageUri = null
                             )
 
                             AppData.addBmiRecord(
@@ -348,7 +366,10 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 heightCm = h,
                                 weightKg = w,
                                 notes = address,
-                                date = AppData.getCurrentDate()
+                                date = AppData.getCurrentDate(),
+                                evidenceUri = selectedEvidenceUri,
+                                evidenceMimeType = selectedEvidenceUri?.let { context.contentResolver.getType(it) }.orEmpty(),
+                                evidenceFileName = selectedEvidenceFileName.orEmpty()
                             )
 
                             Toast.makeText(context, "Profile Created!", Toast.LENGTH_SHORT).show()
@@ -419,4 +440,18 @@ fun FormInputField(
             modifier = Modifier.fillMaxWidth()
         )
     }
+}
+
+private fun Uri.displayName(contentResolver: android.content.ContentResolver): String {
+    return runCatching {
+        contentResolver.query(this, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(nameIndex)
+                } else {
+                    lastPathSegment?.substringAfterLast('/') ?: "Photo Selected"
+                }
+            } ?: (lastPathSegment?.substringAfterLast('/') ?: "Photo Selected")
+    }.getOrDefault("Photo Selected")
 }

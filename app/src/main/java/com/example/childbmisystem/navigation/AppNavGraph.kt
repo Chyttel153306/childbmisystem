@@ -1,5 +1,4 @@
 package com.example.childbmisystem.navigation
-
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
@@ -16,6 +15,7 @@ import com.example.childbmisystem.screens.bhwscreen.DeleteChildProfileScreen
 import com.example.childbmisystem.screens.bhwscreen.SendStatusAlertScreen
 import com.example.childbmisystem.screens.bhwscreen.UpdateChildProfileScreen
 import com.example.childbmisystem.screens.commonscreen.LoginScreen
+import com.example.childbmisystem.screens.commonscreen.EvidencePreviewScreen
 import com.example.childbmisystem.screens.commonscreen.ProfileScreen
 import com.example.childbmisystem.screens.commonscreen.RegistrationScreen
 import com.example.childbmisystem.screens.bhwscreen.ViewChildProfileScreen
@@ -37,6 +37,7 @@ object Routes {
     const val VIEW_CHILD = "view_child/{childId}"
     const val UPDATE_CHILD = "update_child/{childId}"
     const val CHILD_HISTORY = "child_history/{childId}"
+    const val EVIDENCE_PREVIEW = "evidence_preview"
     const val SEND_ALERT = "send_alert"
     const val DELETE_CHILD = "delete_child/{childId}"
 
@@ -136,6 +137,14 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         ) { backStackEntry ->
             val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
             ChildHistoryScreen(navController, childId)
+        }
+
+        composable(Routes.EVIDENCE_PREVIEW) {
+            val imageUrl = navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<String>("evidence_url")
+                ?: return@composable
+            EvidencePreviewScreen(navController, imageUrl)
         }
 
         // ================= DELETE CHILD =================

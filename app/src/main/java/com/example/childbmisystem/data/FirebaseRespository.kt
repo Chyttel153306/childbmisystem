@@ -19,6 +19,10 @@ object FirebaseRepository {
 
     private const val TAG = "FirebaseRepository"
 
+    private fun sanitizeFileName(fileName: String): String {
+        return fileName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    }
+
     val auth: FirebaseAuth
         get() = FirebaseAuth.getInstance()
 
@@ -202,13 +206,21 @@ object FirebaseRepository {
 
     // ───────────────── BMI PHOTO UPLOAD ─────────────────
 
-    suspend fun uploadBmiPhoto(childId: String, recordId: String, imageUri: Uri): Result<String> = try {
-        val storageRef = storage.reference.child("bmi_photos/$childId/$recordId.jpg")
-        storageRef.putFile(imageUri).await()
+    suspend fun uploadBmiEvidence(
+        childId: String,
+        recordId: String,
+        evidenceUri: Uri,
+        evidenceFileName: String
+    ): Result<String> = try {
+        val safeFileName = sanitizeFileName(
+            if (evidenceFileName.isNotBlank()) evidenceFileName else "$recordId.jpg"
+        )
+        val storageRef = storage.reference.child("bmi_evidence/$childId/$recordId-$safeFileName")
+        storageRef.putFile(evidenceUri).await()
         val downloadUrl = storageRef.downloadUrl.await()
         Result.success(downloadUrl.toString())
     } catch (e: Exception) {
-        Log.e(TAG, "Upload BMI photo failed", e)
+        Log.e(TAG, "Upload BMI evidence failed", e)
         Result.failure(e)
     }
 
@@ -223,6 +235,9 @@ object FirebaseRepository {
             .await()
             .documents
             .map { doc ->
+                val evidenceUrl = doc.getString("evidenceUrl")
+                    ?: doc.getString("photoUrl")
+                    ?: ""
                 BmiRecord(
                     id = doc.id,
                     date = doc.getString("date") ?: "",
@@ -232,7 +247,10 @@ object FirebaseRepository {
                     status = doc.getString("status") ?: "",
                     notes = doc.getString("notes") ?: "",
                     recordedBy = doc.getString("recordedBy") ?: "",
-                    photoUrl = doc.getString("photoUrl") ?: ""
+                    evidenceUrl = evidenceUrl,
+                    photoUrl = doc.getString("photoUrl") ?: evidenceUrl,
+                    evidenceMimeType = doc.getString("evidenceMimeType") ?: "",
+                    evidenceFileName = doc.getString("evidenceFileName") ?: ""
                 )
             }
     } catch (e: Exception) {

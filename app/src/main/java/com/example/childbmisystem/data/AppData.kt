@@ -39,7 +39,10 @@ data class BmiRecord(
     val status: String = "",
     val notes: String = "",
     val recordedBy: String = "",
-    val photoUrl: String = ""
+    val evidenceUrl: String = "",
+    val photoUrl: String = "",
+    val evidenceMimeType: String = "",
+    val evidenceFileName: String = ""
 ) {
     fun toMap() = mapOf(
         "date" to date,
@@ -50,7 +53,10 @@ data class BmiRecord(
         "notes" to notes,
         "recordedBy" to recordedBy,
         "timestamp" to Timestamp.now(),
-        "photoUrl" to photoUrl
+        "evidenceUrl" to evidenceUrl.ifBlank { photoUrl },
+        "photoUrl" to photoUrl.ifBlank { evidenceUrl },
+        "evidenceMimeType" to evidenceMimeType,
+        "evidenceFileName" to evidenceFileName
     )
 }
 
@@ -259,9 +265,12 @@ object AppData {
         weightKg: Double,
         notes: String,
         date: String,
-        imageUri: Uri? = null
+        evidenceUri: Uri? = null,
+        evidenceMimeType: String = "",
+        evidenceFileName: String = ""
     ) {
         val bmi = calculateBmi(heightCm, weightKg)
+        val initialEvidenceUrl = evidenceUri?.toString().orEmpty()
         val record = BmiRecord(
             date = date,
             heightCm = heightCm,
@@ -269,26 +278,53 @@ object AppData {
             bmi = bmi,
             status = bmiStatus(bmi),
             notes = notes,
-            recordedBy = currentUser.value?.fullName ?: "BHW"
+            recordedBy = currentUser.value?.fullName ?: "BHW",
+            evidenceUrl = initialEvidenceUrl,
+            photoUrl = initialEvidenceUrl,
+            evidenceMimeType = evidenceMimeType,
+            evidenceFileName = evidenceFileName
         )
 
         val result = FirebaseRepository.addBmiRecord(childId, record)
         val recordId = result.getOrNull() ?: ""
 
-        var photoUrl = ""
-        if (imageUri != null && recordId.isNotBlank()) {
-            val uploadResult = FirebaseRepository.uploadBmiPhoto(childId, recordId, imageUri)
+        var evidenceUrl = initialEvidenceUrl
+        if (evidenceUri != null && recordId.isNotBlank()) {
+            val uploadResult = FirebaseRepository.uploadBmiEvidence(
+                childId = childId,
+                recordId = recordId,
+                evidenceUri = evidenceUri,
+                evidenceFileName = evidenceFileName
+            )
             if (uploadResult.isSuccess) {
-                photoUrl = uploadResult.getOrNull() ?: ""
-                FirebaseRepository.db
-                    .collection("children").document(childId)
-                    .collection("bmiRecords").document(recordId)
-                    .update("photoUrl", photoUrl)
-                    .await()
+                evidenceUrl = uploadResult.getOrNull() ?: ""
             }
         }
 
-        val newRecord = record.copy(id = recordId, photoUrl = photoUrl)
+        FirebaseRepository.db
+            .collection("children").document(childId)
+            .collection("bmiRecords").document(recordId)
+            .update(
+                mapOf(
+                    "evidenceUrl" to evidenceUrl,
+                    "photoUrl" to evidenceUrl,
+                    "evidenceMimeType" to evidenceMimeType,
+                    "evidenceFileName" to evidenceFileName
+                )
+            )
+            .await()
+
+        val newRecord = record.copy(
+            id = recordId,
+            evidenceUrl = evidenceUrl,
+            photoUrl = evidenceUrl
+        )
+
+        FirebaseRepository.db
+            .collection("children")
+            .document(childId)
+            .update("lastBmiUpdatedAt", Timestamp.now())
+            .await()
 
         val index = children.indexOfFirst { it.id == childId }
         if (index >= 0) {

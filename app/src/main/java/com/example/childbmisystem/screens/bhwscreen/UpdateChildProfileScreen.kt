@@ -1,6 +1,7 @@
 package com.example.childbmisystem.screens.bhwscreen
 
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -52,15 +54,25 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
     var notes        by remember { mutableStateOf("") }
     var saved        by remember { mutableStateOf(false) }
     var isLoading    by remember { mutableStateOf(false) }
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedEvidenceUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedEvidenceFileName by remember { mutableStateOf<String?>(null) }
 
     val genderOptions = listOf("Male", "Female")
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        selectedPhotoUri = uri
-        if (uri != null) Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            selectedEvidenceUri = it
+            selectedEvidenceFileName = it.displayName(context.contentResolver)
+            Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+        }
     }
 
     val scope        = rememberCoroutineScope()
@@ -320,16 +332,22 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                     // ── Upload Photo ────────────────────────────────────────
                     Text("Add Proof / Photo", fontWeight = FontWeight.SemiBold, color = Color.Black)
                     OutlinedButton(
-                        onClick = { photoPickerLauncher.launch("image/*") },
+                        onClick = { photoPickerLauncher.launch(arrayOf("image/*")) },
                         enabled = !isLoading,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                     ) {
-                        if (selectedPhotoUri != null) {
+                        if (selectedEvidenceUri != null) {
                             Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = primaryGreen)
                             Spacer(Modifier.width(8.dp))
-                            Text("Photo Selected", color = primaryGreen, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = selectedEvidenceFileName ?: "Photo Selected",
+                                color = primaryGreen,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         } else {
                             Icon(Icons.Filled.FileUpload, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
@@ -410,7 +428,9 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                                     weightKg = w,
                                     notes    = notes,
                                     date     = AppData.getCurrentDate(),
-                                    imageUri = selectedPhotoUri
+                                    evidenceUri = selectedEvidenceUri,
+                                    evidenceMimeType = selectedEvidenceUri?.let { context.contentResolver.getType(it) }.orEmpty(),
+                                    evidenceFileName = selectedEvidenceFileName.orEmpty()
                                 )
                             }
 
@@ -431,4 +451,18 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
             }
         }
     }
+}
+
+private fun Uri.displayName(contentResolver: android.content.ContentResolver): String {
+    return runCatching {
+        contentResolver.query(this, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(nameIndex)
+                } else {
+                    lastPathSegment?.substringAfterLast('/') ?: "Photo Selected"
+                }
+            } ?: (lastPathSegment?.substringAfterLast('/') ?: "Photo Selected")
+    }.getOrDefault("Photo Selected")
 }
