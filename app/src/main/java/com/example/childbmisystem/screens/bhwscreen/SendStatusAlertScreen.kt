@@ -1,10 +1,22 @@
 package com.example.childbmisystem.screens.bhwscreen
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -12,33 +24,98 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.childbmisystem.data.AppData
+import com.example.childbmisystem.data.FirebaseRepository
+import com.example.childbmisystem.data.User
+import com.example.childbmisystem.navigation.Routes
+import com.example.childbmisystem.ui.theme.components.AppBg
+import com.example.childbmisystem.ui.theme.components.AppCardBg
+import com.example.childbmisystem.ui.theme.components.AppGreen
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SendStatusAlertScreen(navController: NavController) {
-
+fun SendStatusAlertScreen(
+    navController: NavController,
+    preselectedChildId: String? = null
+) {
     var selectedAlertType by remember { mutableStateOf("Warning") }
     var alertMessage by remember { mutableStateOf("") }
     var selectedChildren by remember { mutableStateOf(setOf<String>()) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isSuccess by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var scheduledCheckupAtMillis by remember { mutableStateOf<Long?>(null) }
 
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val parentNames = remember { mutableStateMapOf<String, String>() }
+    val scheduleFormatter = remember {
+        SimpleDateFormat("MMMM dd, yyyy 'at' hh:mm a", Locale.getDefault())
+    }
 
-    val primaryBlue = Color(0xFF2196F3)
+    val visibleChildren = if (preselectedChildId.isNullOrBlank()) {
+        AppData.children.toList()
+    } else {
+        AppData.children.filter { it.id == preselectedChildId }
+    }
+    val isSpecificChildAlert = !preselectedChildId.isNullOrBlank()
+
+    LaunchedEffect(preselectedChildId, visibleChildren.size) {
+        if (!preselectedChildId.isNullOrBlank() && visibleChildren.any { it.id == preselectedChildId }) {
+            selectedChildren = setOf(preselectedChildId)
+        }
+    }
+
+    LaunchedEffect(visibleChildren.map { it.parentId }) {
+        visibleChildren.mapNotNull { it.parentId }
+            .distinct()
+            .forEach { parentId ->
+                if (!parentNames.containsKey(parentId)) {
+                    val parent = FirebaseRepository.getUser(parentId)
+                    parentNames[parentId] = parent.displayName()
+                }
+            }
+    }
+
     val lightBlueBanner = Color(0xFFE3F2FD)
     val infoTextColor = Color(0xFF1565C0)
     val amber = Color(0xFFFFA000)
@@ -46,23 +123,28 @@ fun SendStatusAlertScreen(navController: NavController) {
     val alertTypes = listOf(
         Triple("Warning", "Status needs attention", amber),
         Triple("Critical", "Immediate action required", Color(0xFFF44336)),
-        Triple("Information", "General update", primaryBlue),
+        Triple("Information", "General update", AppGreen),
         Triple("Checkup Due", "Schedule appointment", Color(0xFF9C27B0))
     )
 
     Scaffold(
+        containerColor = AppBg,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(
-                            "Send Status Alert",
+                            text = "Send Status Alert",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
                             color = Color.Black
                         )
                         Text(
-                            "Notify parents about health status",
+                            text = if (isSpecificChildAlert) {
+                                "Send an alert for this child only"
+                            } else {
+                                "Notify parents about health status"
+                            },
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -77,38 +159,41 @@ fun SendStatusAlertScreen(navController: NavController) {
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AppBg)
             )
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(AppBg)
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = lightBlueBanner),
                 elevation = CardDefaults.cardElevation(0.dp)
             ) {
                 Row(
-                    Modifier.padding(14.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Default.Info,
+                        imageVector = Icons.Default.Info,
                         contentDescription = null,
-                        tint = primaryBlue,
+                        tint = AppGreen,
                         modifier = Modifier.size(20.dp)
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.size(12.dp))
                     Text(
-                        "Send alerts to parents via app notification",
+                        text = if (isSpecificChildAlert) {
+                            "This alert will only be sent to the selected child's parent."
+                        } else {
+                            "Select the children whose parents should receive this alert."
+                        },
                         fontSize = 13.sp,
                         color = infoTextColor,
                         fontWeight = FontWeight.Medium
@@ -117,7 +202,7 @@ fun SendStatusAlertScreen(navController: NavController) {
             }
 
             Text(
-                "Health Status",
+                text = "Health Status",
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
                 color = Color.Black
@@ -126,7 +211,7 @@ fun SendStatusAlertScreen(navController: NavController) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 alertTypes.chunked(2).forEach { row ->
                     Row(
-                        Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         row.forEach { (type, subtitle, color) ->
@@ -151,13 +236,13 @@ fun SendStatusAlertScreen(navController: NavController) {
                             ) {
                                 Column {
                                     Text(
-                                        type,
+                                        text = type,
                                         fontWeight = FontWeight.Bold,
                                         color = if (selected) Color.White else Color.Black,
                                         fontSize = 14.sp
                                     )
                                     Text(
-                                        subtitle,
+                                        text = subtitle,
                                         fontSize = 11.sp,
                                         color = if (selected) Color.White.copy(alpha = 0.8f) else Color.Gray,
                                         lineHeight = 14.sp
@@ -170,24 +255,34 @@ fun SendStatusAlertScreen(navController: NavController) {
             }
 
             Text(
-                "Select Children (${selectedChildren.size})",
+                text = "Select Children (${selectedChildren.size})",
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
                 color = Color.Black
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppData.children.forEach { child ->
+                if (visibleChildren.isEmpty()) {
+                    Text(
+                        text = "No child available for alert.",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                visibleChildren.forEach { child ->
+                    val parentName = child.parentId?.let(parentNames::get) ?: "No parent assigned"
+
                     Card(
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = AppCardBg),
                         border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
                         elevation = CardDefaults.cardElevation(0.5.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .clickable(enabled = !isSpecificChildAlert) {
                                     selectedChildren =
                                         if (child.id in selectedChildren) {
                                             selectedChildren - child.id
@@ -202,14 +297,17 @@ fun SendStatusAlertScreen(navController: NavController) {
                             Checkbox(
                                 checked = child.id in selectedChildren,
                                 onCheckedChange = { checked ->
-                                    selectedChildren =
-                                        if (checked) selectedChildren + child.id
-                                        else selectedChildren - child.id
-                                    statusMessage = null
+                                    if (!isSpecificChildAlert) {
+                                        selectedChildren =
+                                            if (checked) selectedChildren + child.id
+                                            else selectedChildren - child.id
+                                        statusMessage = null
+                                    }
                                 },
-                                colors = CheckboxDefaults.colors(checkedColor = primaryBlue)
+                                enabled = !isSpecificChildAlert,
+                                colors = CheckboxDefaults.colors(checkedColor = AppGreen)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.size(8.dp))
                             Column {
                                 Text(
                                     text = child.fullName,
@@ -218,9 +316,15 @@ fun SendStatusAlertScreen(navController: NavController) {
                                     color = Color.Black
                                 )
                                 Text(
-                                    text = "Parent: Contact Registered",
+                                    text = "Parent: $parentName",
                                     fontSize = 12.sp,
                                     color = Color.Gray
+                                )
+                                Text(
+                                    text = child.bmiStatus,
+                                    fontSize = 12.sp,
+                                    color = statusColor(child.bmiStatus),
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
@@ -228,8 +332,66 @@ fun SendStatusAlertScreen(navController: NavController) {
                 }
             }
 
+            if (selectedAlertType == "Checkup Due") {
+                Text(
+                    text = "Checkup Schedule",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = Color.Black
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        val calendar = Calendar.getInstance()
+                        scheduledCheckupAtMillis?.let { calendar.timeInMillis = it }
+
+                        DatePickerDialog(
+                            context,
+                            { _, year, month, dayOfMonth ->
+                                val pickedCalendar = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, year)
+                                    set(Calendar.MONTH, month)
+                                    set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                                }
+
+                                TimePickerDialog(
+                                    context,
+                                    { _, hourOfDay, minute ->
+                                        pickedCalendar.set(Calendar.HOUR_OF_DAY, hourOfDay)
+                                        pickedCalendar.set(Calendar.MINUTE, minute)
+                                        pickedCalendar.set(Calendar.SECOND, 0)
+                                        pickedCalendar.set(Calendar.MILLISECOND, 0)
+                                        scheduledCheckupAtMillis = pickedCalendar.timeInMillis
+                                        statusMessage = null
+                                    },
+                                    calendar.get(Calendar.HOUR_OF_DAY),
+                                    calendar.get(Calendar.MINUTE),
+                                    false
+                                ).show()
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        ).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, AppGreen),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppGreen)
+                ) {
+                    Text(
+                        text = scheduledCheckupAtMillis?.let {
+                            scheduleFormatter.format(Date(it))
+                        } ?: "Set date and time for checkup",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
             Text(
-                "Query (Message)",
+                text = "Message",
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
                 color = Color.Black
@@ -243,7 +405,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                 },
                 placeholder = {
                     Text(
-                        "Enter message for parents...",
+                        text = "Enter message for parents...",
                         color = Color.Gray,
                         fontSize = 14.sp
                     )
@@ -254,14 +416,15 @@ fun SendStatusAlertScreen(navController: NavController) {
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = Color(0xFFE0E0E0),
-                    focusedBorderColor = primaryBlue,
+                    focusedBorderColor = AppGreen,
                     focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black
+                    unfocusedTextColor = Color.Black,
+                    cursorColor = Color.Black
                 )
             )
 
             Row(
-                Modifier
+                modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -273,11 +436,11 @@ fun SendStatusAlertScreen(navController: NavController) {
                         .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = primaryBlue,
+                        containerColor = AppGreen,
                         contentColor = Color.White
                     )
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Bold)
+                    Text(text = "Cancel", fontWeight = FontWeight.Bold)
                 }
 
                 Button(
@@ -285,32 +448,50 @@ fun SendStatusAlertScreen(navController: NavController) {
                         scope.launch {
                             statusMessage = null
 
-                            if (selectedChildren.isEmpty()) {
+                            if (selectedChildren.isEmpty() || alertMessage.isBlank()) {
                                 isSuccess = false
-                                statusMessage = "Please select at least one child."
+                                statusMessage = "Please select child and fill in message."
                                 return@launch
                             }
 
-                            if (alertMessage.isBlank()) {
+                            if (selectedAlertType == "Checkup Due" && scheduledCheckupAtMillis == null) {
                                 isSuccess = false
-                                statusMessage = "Please enter a message."
+                                statusMessage = "Please set the checkup date and time."
                                 return@launch
+                            }
+
+                            val finalMessage = buildString {
+                                append(alertMessage.trim())
+                                if (selectedAlertType == "Checkup Due" && scheduledCheckupAtMillis != null) {
+                                    append("\nCheckup schedule: ")
+                                    append(scheduleFormatter.format(Date(scheduledCheckupAtMillis!!)))
+                                }
                             }
 
                             isLoading = true
                             val success = AppData.sendAlert(
-                                selectedChildren.toList(),
-                                selectedAlertType,
-                                alertMessage
+                                childIds = selectedChildren.toList(),
+                                alertType = selectedAlertType,
+                                message = finalMessage
                             )
                             isLoading = false
 
                             if (success) {
                                 isSuccess = true
                                 statusMessage = "Alert sent successfully."
-                                selectedChildren = emptySet()
+                                Toast.makeText(context, "Alert sent successfully.", Toast.LENGTH_SHORT).show()
+                                selectedChildren = if (isSpecificChildAlert) {
+                                    setOfNotNull(preselectedChildId)
+                                } else {
+                                    emptySet()
+                                }
                                 alertMessage = ""
                                 selectedAlertType = "Warning"
+                                scheduledCheckupAtMillis = null
+                                navController.navigate(Routes.BHW_DASHBOARD) {
+                                    popUpTo(Routes.BHW_DASHBOARD) { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             } else {
                                 isSuccess = false
                                 statusMessage = "Failed to send alert."
@@ -322,7 +503,7 @@ fun SendStatusAlertScreen(navController: NavController) {
                         .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = primaryBlue,
+                        containerColor = AppGreen,
                         contentColor = Color.White
                     ),
                     enabled = !isLoading
@@ -336,14 +517,14 @@ fun SendStatusAlertScreen(navController: NavController) {
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.AutoMirrored.Filled.Send,
+                                imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                                 tint = Color.White
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.size(8.dp))
                             Text(
-                                "Send",
+                                text = "Send",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
@@ -362,5 +543,14 @@ fun SendStatusAlertScreen(navController: NavController) {
                 )
             }
         }
+    }
+}
+
+private fun User?.displayName(): String {
+    return when {
+        this == null -> "No parent assigned"
+        fullName.isNotBlank() -> fullName
+        email.isNotBlank() -> email
+        else -> "Parent"
     }
 }

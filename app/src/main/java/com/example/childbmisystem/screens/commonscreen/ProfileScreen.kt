@@ -1,228 +1,589 @@
 package com.example.childbmisystem.screens.commonscreen
 
-import androidx.compose.foundation.BorderStroke
+import android.widget.Toast
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.HomeWork
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.navigation.Routes
-import com.example.childbmisystem.ui.theme.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private val AppBg = Color(0xFFF7F8FA)
+private val WhiteCard = Color(0xFFFFFFFF)
+private val Green = Color(0xFF4FD19A)
+private val DarkGreen = Color(0xFF1F7A56)
+private val SoftGreen = Color(0xFFE3F7EE)
+private val SoftGray = Color(0xFFF1F3F5)
+private val BorderGray = Color(0xFFE5E7EB)
+private val TextPrimary = Color(0xFF0F172A)
+private val TextSecondary = Color(0xFF6B7280)
+private val Danger = Color(0xFFEF4444)
+
 @Composable
 fun ProfileScreen(navController: NavController) {
+    val context = LocalContext.current
     val user = AppData.currentUser.value
-    val isBhw = user?.role.equals("BHW", ignoreCase = true)
-
-    // No fake data – use actual user values (or empty if null)
-    val displayName = user?.fullName ?: ""
-    val displayAddress = user?.address ?: ""
-    val roleLabel = if (isBhw) "Barangay Health Worker" else "Parent / Guardian"
-    val roleIcon = if (isBhw) Icons.Default.HomeWork else Icons.Default.Person
-    val pillBg = if (isBhw) Color(0xFFE0EAFF) else Color(0xFFF5F3FF)
-    val pillText = if (isBhw) Color(0xFF444CE7) else Color(0xFF7C3AED)
-
-    val scrollState = rememberScrollState()
-    var isLoggingOut by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = AppBg,
-            topBar = {
-                Row(
+    val isBhw = user?.role.equals("bhw", ignoreCase = true)
+    val roleLabel = if (isBhw) "Barangay Health Worker" else "Parent / Guardian"
+
+    var isEditing by remember { mutableStateOf(false) }
+    var showPersonalInfo by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
+    var isLoggingOut by remember { mutableStateOf(false) }
+
+    var fullName by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+
+    LaunchedEffect(user?.id, user?.fullName, user?.phoneNumber, user?.address) {
+        fullName = user?.fullName.orEmpty()
+        phoneNumber = user?.phoneNumber.orEmpty()
+        address = user?.address.orEmpty()
+    }
+
+    fun resetFields() {
+        fullName = user?.fullName.orEmpty()
+        phoneNumber = user?.phoneNumber.orEmpty()
+        address = user?.address.orEmpty()
+    }
+
+    if (user == null) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = AppBg
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Text("No profile data available.", color = TextPrimary)
+            }
+        }
+        return
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = AppBg
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 20.dp, vertical = 18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Card(
+                    modifier = Modifier.size(72.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = WhiteCard),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(18.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "My Profile",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "View and manage your account details.",
+                        fontSize = 14.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(containerColor = WhiteCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .systemBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    IconButton(
-                        onClick = { navController.popBackStack() },
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = {
+                                isEditing = true
+                                showPersonalInfo = true
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Green,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Edit Profile",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Box(
                         modifier = Modifier
-                            .size(44.dp)
-                            .border(1.dp, AppCardBorder, RoundedCornerShape(12.dp))
-                            .background(AppCardBg, RoundedCornerShape(12.dp))
+                            .size(130.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFDDF0E7))
+                            .border(2.dp, Green, CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile",
+                            tint = Green,
+                            modifier = Modifier.size(64.dp)
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(18.dp))
+
                     Text(
-                        "My Profile",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTextPrimary
+                        text = user.fullName.ifBlank { "User" },
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TextPrimary
                     )
 
-                    Spacer(modifier = Modifier.size(44.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(SoftGreen)
+                            .padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Role",
+                            tint = Green,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = roleLabel,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DarkGreen
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(SoftGray)
+                            .padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location",
+                            tint = Green,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = user.address.ifBlank { "Address not set" },
+                            fontSize = 14.sp,
+                            color = TextPrimary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-            },
-            bottomBar = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                isLoggingOut = true
-                                delay(500)
-                                AppData.logout()
-                                isLoggingOut = false
-                                navController.navigate(Routes.LOGIN) { popUpTo(0) }
-                            }
-                        },
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                text = "Account",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = TextPrimary,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = WhiteCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                onClick = {
+                    showPersonalInfo = !showPersonalInfo
+                    if (showPersonalInfo) {
+                        isEditing = true
+                    }
+                }
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(60.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.5.dp, Color(0xFFFFE4E4)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = AppCardBg,
-                            contentColor = Color(0xFFD92D20)
-                        ),
-                        enabled = !isLoggingOut
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isLoggingOut) {
-                            CircularProgressIndicator(
-                                color = Color.Red,
-                                modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.dp
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(SoftGreen),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Personal Information",
+                                tint = Green,
+                                modifier = Modifier.size(34.dp)
                             )
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.Logout,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    "Log Out",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                )
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Personal Information",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "View and update your personal details",
+                                fontSize = 14.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Go",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    if (showPersonalInfo) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ProfileField(
+                                label = "Full Name",
+                                value = fullName,
+                                enabled = isEditing,
+                                onValueChange = { fullName = it }
+                            )
+                            ProfileField(
+                                label = "Phone Number",
+                                value = phoneNumber,
+                                enabled = isEditing,
+                                onValueChange = { phoneNumber = it }
+                            )
+                            ProfileField(
+                                label = "Address",
+                                value = address,
+                                enabled = isEditing,
+                                minLines = 2,
+                                onValueChange = { address = it }
+                            )
+                            ProfileField(
+                                label = "Email",
+                                value = user.email,
+                                enabled = false,
+                                onValueChange = {}
+                            )
+
+                            Text(
+                                text = "Email is your login account and stays fixed here.",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        resetFields()
+                                        isEditing = false
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = DarkGreen,
+                                        contentColor = Color.White
+                                    ),
+                                    enabled = !isSaving
+                                ) {
+                                    Text("Cancel", fontWeight = FontWeight.SemiBold)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val cleanName = fullName.trim()
+                                        val cleanAddress = address.trim()
+
+                                        if (cleanName.isBlank() || cleanAddress.isBlank()) {
+                                            Toast.makeText(
+                                                context,
+                                                "Please fill in full name and address.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@Button
+                                        }
+
+                                        scope.launch {
+                                            isSaving = true
+                                            val saved = AppData.updateCurrentUserProfile(
+                                                fullName = cleanName,
+                                                phoneNumber = phoneNumber,
+                                                address = cleanAddress
+                                            )
+                                            isSaving = false
+
+                                            if (saved) {
+                                                isEditing = false
+                                                Toast.makeText(
+                                                    context,
+                                                    "Profile updated successfully.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Unable to update profile.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = DarkGreen,
+                                        contentColor = Color.White
+                                    ),
+                                    enabled = !isSaving
+                                ) {
+                                    if (isSaving) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("Save", fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        ) { paddingValues ->
-            Column(
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(WhiteCard)
+                    .border(2.dp, Danger, RoundedCornerShape(24.dp))
+                    .clickable(enabled = !isLoggingOut) {
+                        scope.launch {
+                            isLoggingOut = true
+                            delay(300)
+                            AppData.logout()
+                            isLoggingOut = false
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(0)
+                            }
+                        }
+                    }
+                    .padding(vertical = 22.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // ── Profile Picture (below "My Profile" title)
-                Box(
-                    modifier = Modifier
-                        .size(110.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEEF2FF))
-                        .border(2.dp, Color.White, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Person,
-                        contentDescription = "Profile Picture",
-                        tint = Color(0xFF444CE7),
-                        modifier = Modifier.size(56.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ── UserName (optional, but good to show)
-                Text(
-                    text = displayName.ifBlank { "User" },
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = AppTextPrimary
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // ── Container for Parent/Guardian (Role)
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = pillBg),
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .border(1.dp, pillText.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Icon(roleIcon, contentDescription = null, tint = pillText, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isLoggingOut) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Danger,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Log Out",
+                                tint = Danger,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = roleLabel,
-                            color = pillText,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
+                            text = "Log Out",
+                            color = Danger,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                // ── Location (below the container)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .background(AppCardBg, RoundedCornerShape(30.dp))
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = Color(0xFFF44336),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = displayAddress.ifBlank { "Address not set" },
-                        color = AppTextSecondary,
+                        text = "Sign out of your account",
+                        color = TextSecondary,
                         fontSize = 14.sp
                     )
                 }
-
-                // Additional spacer for bottom padding
-                Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileField(
+    label: String,
+    value: String,
+    enabled: Boolean,
+    onValueChange: (String) -> Unit,
+    minLines: Int = 1
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = label,
+            color = TextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = enabled,
+            minLines = minLines,
+            singleLine = minLines == 1,
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Green,
+                unfocusedBorderColor = BorderGray,
+                disabledBorderColor = BorderGray,
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = SoftGray,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                disabledTextColor = TextSecondary,
+                focusedLabelColor = DarkGreen,
+                unfocusedLabelColor = TextSecondary
+            )
+        )
+    }
+}
+
+@Composable
+private fun ProfileScreenPreviewContent() {
+    MaterialTheme {
+        ProfileScreen(navController = NavController(LocalContext.current))
     }
 }

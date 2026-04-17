@@ -175,8 +175,11 @@ object FirebaseRepository {
     }
 
     suspend fun deleteChild(childId: String): Result<Unit> = try {
+        deleteAlertsForChild(childId).getOrThrow()
+        deleteBmiRecords(childId).getOrThrow()
+        deleteBmiEvidenceFolder(childId).getOrThrow()
+        deleteChildPhoto(childId).getOrThrow()
         db.collection("children").document(childId).delete().await()
-        deleteChildPhoto(childId)
         Result.success(Unit)
     } catch (e: Exception) {
         Log.e(TAG, "Delete child failed", e)
@@ -268,6 +271,37 @@ object FirebaseRepository {
     } catch (e: Exception) {
         Log.e(TAG, "Add BMI record failed", e)
         Result.failure(e)
+    }
+
+    suspend fun deleteBmiRecords(childId: String): Result<Unit> = try {
+        val records = db.collection("children")
+            .document(childId)
+            .collection("bmiRecords")
+            .get()
+            .await()
+
+        records.documents.forEach { document ->
+            document.reference.delete().await()
+        }
+
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Log.e(TAG, "Delete BMI records failed", e)
+        Result.failure(e)
+    }
+
+    suspend fun deleteBmiEvidenceFolder(childId: String): Result<Unit> = try {
+        val folderRef = storage.reference.child("bmi_evidence/$childId")
+        val contents = folderRef.listAll().await()
+
+        contents.items.forEach { item ->
+            item.delete().await()
+        }
+
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Log.d(TAG, "No BMI evidence to delete for child $childId")
+        Result.success(Unit)
     }
 
     // ───────────────── ALERTS (REAL-TIME) ─────────────────

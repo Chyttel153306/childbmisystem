@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -73,22 +76,13 @@ data class Child(
         get() = bmiHistory.firstOrNull()
 
     val bmiStatus: String
-        get() = latestBmi?.status ?: "No Data"
+        get() = latestBmi?.let { AppData.bmiStatus(it.bmi, ageMonths, gender) } ?: "No Data"
 
-    // ── Age in whole years (used internally) ────────────────────────────
-    val ageYears: Int
-        get() = try {
-            val parts = dateOfBirth.split("-")
-            val birthYear = parts.last().trim().toInt()
-            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-            currentYear - birthYear
-        } catch (e: Exception) {
-            0
-        }
-
-    // ── Age in months (ageYears * 12, used for display in Update screen) ─
     val ageMonths: Int
-        get() = ageYears * 12
+        get() = monthsFromDob(dateOfBirth)
+
+    val ageYears: Int
+        get() = ageMonths / 12
 
     fun toMap() = mapOf(
         "fullName" to fullName,
@@ -114,7 +108,7 @@ data class StatusAlert(
         "message" to message,
         "sentBy" to sentBy,
         "date" to date,
-        "timestamp" to timestamp,
+        "timestamp" to timestamp
     )
 }
 
@@ -200,6 +194,37 @@ object AppData {
         }
     }
 
+    suspend fun updateCurrentUserProfile(
+        fullName: String,
+        phoneNumber: String,
+        address: String
+    ): Boolean {
+        val existingUser = currentUser.value ?: return false
+
+        val updatedUser = existingUser.copy(
+            fullName = fullName.trim(),
+            phoneNumber = phoneNumber.trim(),
+            address = address.trim()
+        )
+
+        val result = FirebaseRepository.saveUser(updatedUser)
+        if (result.isSuccess) {
+            currentUser.value = updatedUser
+            return true
+        }
+
+        return false
+    }
+
+    private fun upsertChildLocal(child: Child) {
+        val index = children.indexOfFirst { it.id == child.id }
+        if (index >= 0) {
+            children[index] = child
+        } else {
+            children.add(child)
+        }
+    }
+
     suspend fun addChild(
         fullName: String,
         dob: String,
@@ -231,12 +256,17 @@ object AppData {
             .update("photoUrl", photoUrl)
             .await()
 
+        upsertChildLocal(finalChild)
+
         return finalChild
     }
 
     suspend fun deleteChild(childId: String) {
-        FirebaseRepository.deleteChild(childId)
-        FirebaseRepository.deleteAlertsForChild(childId)
+        val result = FirebaseRepository.deleteChild(childId)
+        result.getOrThrow()
+
+        children.removeAll { it.id == childId }
+        alerts.removeAll { it.childId == childId }
     }
 
     fun getChild(childId: String): Child? =
@@ -245,18 +275,27 @@ object AppData {
     fun childrenNeedingAttention(): Int =
         children.count { it.bmiStatus != "Normal" && it.bmiStatus != "No Data" }
 
-    fun calculateBmi(heightCm: Double, weightKg: Double): Double {
-        if (heightCm <= 0) return 0.0
-        val h = heightCm / 100.0
-        return ((weightKg / (h * h)) * 10.0).roundToInt() / 10.0
+    fun calculateBmi(heightCm: Double, weightKg: Double, ageMonths: Int? = null): Double {
+        if (heightCm <= 0 || weightKg <= 0) return 0.0
+
+        val adjustedHeightCm = if (ageMonths != null && ageMonths in 0..23) {
+            heightCm + 0.7
+        } else {
+            heightCm
+        }
+
+        val heightMeters = adjustedHeightCm / 100.0
+        return ((weightKg / (heightMeters * heightMeters)) * 10.0).roundToInt() / 10.0
     }
 
-    fun bmiStatus(bmi: Double): String = when {
-        bmi <= 0   -> "No Data"
-        bmi < 16.0 -> "Underweight"
-        bmi < 25.0 -> "Normal"
-        bmi < 30.0 -> "Overweight"
-        else       -> "Obese"
+    fun bmiStatus(bmi: Double, ageMonths: Int? = null, gender: String? = null): String {
+        if (bmi <= 0) return "No Data"
+
+        if (ageMonths != null && gender != null) {
+            BmiForAgeStandards.statusFor(ageMonths, gender, bmi)?.let { return it }
+        }
+
+        return fallbackBmiStatus(bmi)
     }
 
     suspend fun addBmiRecord(
@@ -269,14 +308,18 @@ object AppData {
         evidenceMimeType: String = "",
         evidenceFileName: String = ""
     ) {
-        val bmi = calculateBmi(heightCm, weightKg)
+        val child = getChild(childId)
+        val childAgeMonths = child?.ageMonths
+        val childGender = child?.gender
+        val bmi = calculateBmi(heightCm, weightKg, childAgeMonths)
         val initialEvidenceUrl = evidenceUri?.toString().orEmpty()
+
         val record = BmiRecord(
             date = date,
             heightCm = heightCm,
             weightKg = weightKg,
             bmi = bmi,
-            status = bmiStatus(bmi),
+            status = bmiStatus(bmi, childAgeMonths, childGender),
             notes = notes,
             recordedBy = currentUser.value?.fullName ?: "BHW",
             evidenceUrl = initialEvidenceUrl,
@@ -302,8 +345,10 @@ object AppData {
         }
 
         FirebaseRepository.db
-            .collection("children").document(childId)
-            .collection("bmiRecords").document(recordId)
+            .collection("children")
+            .document(childId)
+            .collection("bmiRecords")
+            .document(recordId)
             .update(
                 mapOf(
                     "evidenceUrl" to evidenceUrl,
@@ -334,51 +379,42 @@ object AppData {
         }
     }
 
-    // ── Update child's personal info (age stored as months) ────────────────
     suspend fun updateChildInfo(
         childId: String,
         fullName: String,
-        ageMonths: Int,        // ← accepts months from UI
+        ageMonths: Int,
         gender: String
     ) {
-        val child = getChild(childId) ?: return
+        getChild(childId) ?: return
 
-        // Convert months → birth year for storage in dateOfBirth
-        val currentYear  = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-        val currentMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
-        val birthYear    = currentYear - (ageMonths / 12)
-        val birthMonth   = currentMonth - (ageMonths % 12)
-            .let { if (it > currentMonth) { (currentMonth + 12 - it) } else { currentMonth - it } }
-
-        val existingParts = child.dateOfBirth.split("-")
-        val newDob = if (existingParts.size >= 3) {
-            // Keep existing day, update month and year derived from ageMonths
-            val day = existingParts[0].trim()
-            "$day-${birthMonth.toString().padStart(2, '0')}-$birthYear"
-        } else {
-            "01-${birthMonth.toString().padStart(2, '0')}-$birthYear"
-        }
-
+        val newDob = dobFromAgeMonths(ageMonths)
         val updates = mapOf(
-            "fullName"    to fullName,
+            "fullName" to fullName,
             "dateOfBirth" to newDob,
-            "gender"      to gender
+            "gender" to gender
         )
 
-        // Persist to Firestore
         FirebaseRepository.db
             .collection("children")
             .document(childId)
             .update(updates)
             .await()
 
-        // Reflect immediately in local state so UI updates without waiting for listener
         val index = children.indexOfFirst { it.id == childId }
         if (index >= 0) {
+            val updatedHistory = children[index].bmiHistory.toMutableList()
+            if (updatedHistory.isNotEmpty()) {
+                val latestRecord = updatedHistory.first()
+                updatedHistory[0] = latestRecord.copy(
+                    status = bmiStatus(latestRecord.bmi, ageMonths, gender)
+                )
+            }
+
             children[index] = children[index].copy(
-                fullName    = fullName,
+                fullName = fullName,
                 dateOfBirth = newDob,
-                gender      = gender
+                gender = gender,
+                bmiHistory = updatedHistory
             )
         }
     }
@@ -393,11 +429,11 @@ object AppData {
 
         childIds.forEach { childId ->
             val alert = StatusAlert(
-                childId   = childId,
+                childId = childId,
                 alertType = alertType,
-                message   = message,
-                sentBy    = currentUser.value?.fullName ?: "BHW",
-                date      = date,
+                message = message,
+                sentBy = currentUser.value?.fullName ?: "BHW",
+                date = date,
                 timestamp = Timestamp.now()
             )
 
@@ -427,4 +463,38 @@ object AppData {
 
     fun getCurrentDate(): String =
         SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()).format(Date())
+}
+
+private fun fallbackBmiStatus(bmi: Double): String = when {
+    bmi < 16.0 -> "Underweight"
+    bmi < 25.0 -> "Normal"
+    bmi < 30.0 -> "Overweight"
+    else -> "Obese"
+}
+
+private val dobFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
+
+private fun monthsFromDob(dateOfBirth: String): Int {
+    return try {
+        val birthDate = LocalDate.parse(dateOfBirth, dobFormatter)
+        val today = LocalDate.now()
+        if (birthDate.isAfter(today)) {
+            0
+        } else {
+            val totalMonths = (today.year - birthDate.year) * 12 + (today.monthValue - birthDate.monthValue)
+            if (today.dayOfMonth < birthDate.dayOfMonth) {
+                (totalMonths - 1).coerceAtLeast(0)
+            } else {
+                totalMonths.coerceAtLeast(0)
+            }
+        }
+    } catch (_: DateTimeParseException) {
+        0
+    }
+}
+
+private fun dobFromAgeMonths(ageMonths: Int): String {
+    return LocalDate.now()
+        .minusMonths(ageMonths.toLong())
+        .format(dobFormatter)
 }

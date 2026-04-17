@@ -1,4 +1,9 @@
 package com.example.childbmisystem.navigation
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
@@ -38,13 +43,15 @@ object Routes {
     const val UPDATE_CHILD = "update_child/{childId}"
     const val CHILD_HISTORY = "child_history/{childId}"
     const val EVIDENCE_PREVIEW = "evidence_preview"
-    const val SEND_ALERT = "send_alert"
+    const val SEND_ALERT = "send_alert?childId={childId}"
     const val DELETE_CHILD = "delete_child/{childId}"
 
     fun viewChild(id: String) = "view_child/$id"
     fun updateChild(id: String) = "update_child/$id"
     fun childHistory(id: String) = "child_history/$id"
     fun deleteChild(id: String) = "delete_child/$id"
+    fun sendAlert(childId: String? = null) =
+        if (childId.isNullOrBlank()) "send_alert" else "send_alert?childId=$childId"
 }
 
 @Composable
@@ -62,8 +69,36 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     }
 
     NavHost(
-        navController    = navController,
-        startDestination = Routes.LOGIN
+        navController = navController,
+        startDestination = Routes.LOGIN,
+        enterTransition = {
+            fadeIn(animationSpec = tween(220)) +
+                slideInHorizontally(
+                    initialOffsetX = { it / 6 },
+                    animationSpec = tween(260)
+                )
+        },
+        exitTransition = {
+            fadeOut(animationSpec = tween(180)) +
+                slideOutHorizontally(
+                    targetOffsetX = { -it / 10 },
+                    animationSpec = tween(220)
+                )
+        },
+        popEnterTransition = {
+            fadeIn(animationSpec = tween(220)) +
+                slideInHorizontally(
+                    initialOffsetX = { -it / 6 },
+                    animationSpec = tween(260)
+                )
+        },
+        popExitTransition = {
+            fadeOut(animationSpec = tween(180)) +
+                slideOutHorizontally(
+                    targetOffsetX = { it / 10 },
+                    animationSpec = tween(220)
+                )
+        }
     ) {
 
         // ================= AUTH =================
@@ -105,8 +140,20 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             CreateChildProfileScreen(navController)
         }
 
-        composable(Routes.SEND_ALERT) {
-            SendStatusAlertScreen(navController)
+        composable(
+            route = Routes.SEND_ALERT,
+            arguments = listOf(
+                navArgument("childId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            SendStatusAlertScreen(
+                navController = navController,
+                preselectedChildId = backStackEntry.arguments?.getString("childId")
+            )
         }
 
         // ================= VIEW CHILD =================

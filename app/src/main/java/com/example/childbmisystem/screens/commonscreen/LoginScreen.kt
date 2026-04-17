@@ -29,7 +29,7 @@ fun LoginScreen(navController: NavController) {
 
     var email           by remember { mutableStateOf("") }
     var password        by remember { mutableStateOf("") }
-    var selectedRole    by remember { mutableStateOf("BHW") }
+    var selectedRole    by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage    by remember { mutableStateOf("") }
     var isLoading       by remember { mutableStateOf(false) }
@@ -116,11 +116,13 @@ fun LoginScreen(navController: NavController) {
             }
 
             val textFieldColors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = green,
+                focusedBorderColor = Color.Black,
                 unfocusedBorderColor = Color.LightGray,
                 focusedTextColor = Color.Black,
                 unfocusedTextColor = Color.Black,
-                cursorColor = green
+                cursorColor = Color.Black,
+                focusedLeadingIconColor = Color.Black,
+                focusedTrailingIconColor = Color.Black
             )
 
             // EMAIL
@@ -174,12 +176,19 @@ fun LoginScreen(navController: NavController) {
                         isLoading = true
                         errorMessage = ""
 
-                        val success = AppData.login(email.trim(), password, selectedRole)
+                        val role = selectedRole
+                        if (role == null) {
+                            isLoading = false
+                            errorMessage = "Please choose Login As."
+                            return@launch
+                        }
+
+                        val success = AppData.login(email.trim(), password, role)
 
                         isLoading = false
 
                         if (success) {
-                            val destination = if (selectedRole == "BHW") Routes.BHW_DASHBOARD else Routes.PARENT_DASHBOARD
+                            val destination = if (role == "BHW") Routes.BHW_DASHBOARD else Routes.PARENT_DASHBOARD
                             navController.navigate(destination) { popUpTo(Routes.LOGIN) { inclusive = true } }
                         } else {
                             errorMessage = "Invalid email, password, or role."

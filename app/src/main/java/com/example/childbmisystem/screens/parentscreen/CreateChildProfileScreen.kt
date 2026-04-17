@@ -5,9 +5,20 @@ import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -16,8 +27,31 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,7 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.childbmisystem.data.AppData
 import kotlinx.coroutines.launch
-import java.util.*
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,21 +73,18 @@ fun CreateChildProfileScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Fields
     var name by remember { mutableStateOf("") }
-    var ageMonths by remember { mutableStateOf("") }   // ← now in months
+    var ageMonths by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("") }
 
-    // Gender
     var gender by remember { mutableStateOf("Male") }
     var genderExpanded by remember { mutableStateOf(false) }
-    val genderOptions = listOf("Male", "Female", "Other")
+    val genderOptions = listOf("Male", "Female")
 
     var isLoading by remember { mutableStateOf(false) }
 
-    // Photo state
     var selectedEvidenceUri by remember { mutableStateOf<Uri?>(null) }
     var selectedEvidenceFileName by remember { mutableStateOf<String?>(null) }
 
@@ -73,12 +104,16 @@ fun CreateChildProfileScreen(navController: NavController) {
         }
     }
 
-    // Live BMI
     val hVal = height.toDoubleOrNull() ?: 0.0
     val wVal = weight.toDoubleOrNull() ?: 0.0
-    val liveBmi = remember(hVal, wVal) { AppData.calculateBmi(hVal, wVal) }
+    val liveAgeMonths = ageMonths.toIntOrNull() ?: 0
+    val liveBmi = remember(hVal, wVal, liveAgeMonths) {
+        AppData.calculateBmi(hVal, wVal, liveAgeMonths)
+    }
+    val liveBmiStatus = remember(liveBmi, liveAgeMonths, gender) {
+        AppData.bmiStatus(liveBmi, liveAgeMonths, gender)
+    }
 
-    // UI Colors
     val inputBackgroundColor = Color(0xFFE8E9EC)
     val cardBorderColor = Color(0xFFE0E0E0)
     val primaryGreen = Color(0xFF00C853)
@@ -125,7 +160,6 @@ fun CreateChildProfileScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // --- SECTION 1: Personal Info ---
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, cardBorderColor),
@@ -146,8 +180,6 @@ fun CreateChildProfileScreen(navController: NavController) {
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-
-                        // ── Age in months ───────────────────────────────────
                         FormInputField(
                             label = "Age (months)",
                             placeholder = "e.g. 24",
@@ -161,7 +193,9 @@ fun CreateChildProfileScreen(navController: NavController) {
                         ExposedDropdownMenuBox(
                             expanded = genderExpanded,
                             onExpandedChange = { genderExpanded = it },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .animateContentSize()
                         ) {
                             Column {
                                 Text(
@@ -225,7 +259,6 @@ fun CreateChildProfileScreen(navController: NavController) {
                 }
             }
 
-            // --- SECTION 2: BMI Record ---
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, cardBorderColor),
@@ -238,7 +271,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        "Child BMI Record",
+                        text = "Child BMI Record",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = Color.Black
@@ -272,7 +305,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "BMI: $liveBmi  •  ${AppData.bmiStatus(liveBmi)}",
+                            text = "BMI: $liveBmi  •  $liveBmiStatus",
                             color = Color(0xFF4285F4),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp
@@ -310,7 +343,10 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 overflow = TextOverflow.Ellipsis
                             )
                         } else {
-                            Icon(imageVector = Icons.Filled.FileUpload, contentDescription = "Upload Photo")
+                            Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = "Upload Photo"
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Upload Photo")
                         }
@@ -320,7 +356,6 @@ fun CreateChildProfileScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.weight(1f, fill = false))
 
-            // --- SAVE BUTTON ---
             Button(
                 onClick = {
                     if (name.isBlank() || ageMonths.isBlank() || height.isBlank() || weight.isBlank()) {
@@ -345,13 +380,11 @@ fun CreateChildProfileScreen(navController: NavController) {
 
                     scope.launch {
                         try {
-                            // ── Convert months → approximate DOB ────────────
-                            // e.g. 24 months = 2 years back from today
                             val cal = Calendar.getInstance()
                             cal.add(Calendar.MONTH, -months)
-                            val dobDay   = cal.get(Calendar.DAY_OF_MONTH)
-                            val dobMonth = cal.get(Calendar.MONTH) + 1   // Calendar months are 0-based
-                            val dobYear  = cal.get(Calendar.YEAR)
+                            val dobDay = cal.get(Calendar.DAY_OF_MONTH)
+                            val dobMonth = cal.get(Calendar.MONTH) + 1
+                            val dobYear = cal.get(Calendar.YEAR)
                             val dob = "%02d-%02d-%d".format(dobDay, dobMonth, dobYear)
 
                             val child = AppData.addChild(
@@ -374,7 +407,6 @@ fun CreateChildProfileScreen(navController: NavController) {
 
                             Toast.makeText(context, "Profile Created!", Toast.LENGTH_SHORT).show()
                             navController.popBackStack()
-
                         } catch (e: Exception) {
                             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                         }

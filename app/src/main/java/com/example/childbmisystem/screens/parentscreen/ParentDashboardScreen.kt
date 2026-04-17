@@ -5,8 +5,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
@@ -34,8 +36,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -96,8 +98,14 @@ fun ParentDashboardScreen(navController: NavController) {
                 if (parentAlerts.isEmpty()) {
                     Text("No notifications yet.", color = Color.Black)
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        parentAlerts.take(5).forEach { alert ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        parentAlerts.forEach { alert ->
                             ParentAlertCard(alert = alert)
                         }
                     }
@@ -188,38 +196,25 @@ fun ParentDashboardScreen(navController: NavController) {
             Button(
                 onClick = { navController.navigate(Routes.CREATE_CHILD) },
                 shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(62.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFF58D39B), Color(0xFF7FD58C))
-                            ),
-                            RoundedCornerShape(18.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(26.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Create Child Profile",
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 18.sp
-                        )
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Create Child Profile",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp
+                    )
                 }
             }
 
@@ -299,13 +294,19 @@ fun ParentAlertCard(alert: StatusAlert) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
+                    text = "Message:",
+                    fontSize = 12.sp,
+                    color = Color.DarkGray,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
                     text = alert.message.ifBlank { "No message provided." },
                     fontSize = 13.sp,
                     color = Color.Black
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "From: ${alert.sentBy} • ${alert.date}",
+                    text = "From: ${alert.sentBy} - ${alert.date}",
                     fontSize = 11.sp,
                     color = Color.Gray
                 )

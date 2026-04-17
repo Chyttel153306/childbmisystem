@@ -1,5 +1,6 @@
 package com.example.childbmisystem.screens.bhwscreen
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,8 +47,10 @@ fun DeleteChildProfileScreen(
     }
 
     var isLoading by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-
+    val context = LocalContext.current
+    val documentCount = child.bmiHistory.count { it.evidenceUrl.isNotBlank() || it.photoUrl.isNotBlank() }
     val backgroundColor = Color(0xFFF8F8F8)
     val red = Color(0xFFFF3B30)
     val lightRed = Color(0xFFFFF1F1)
@@ -55,6 +59,49 @@ fun DeleteChildProfileScreen(
     val noteBorder = Color(0xFFFFE082)
     val grayText = Color(0xFF7A7A7A)
     val cardBorder = Color(0xFFEAEAEA)
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Child Profile", color = Color.Black, fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this child profile?", color = Color.Black) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        scope.launch {
+                            try {
+                                isLoading = true
+                                AppData.deleteChild(childId)
+                                Toast.makeText(context, "Successfully deleted.", Toast.LENGTH_SHORT).show()
+                                navController.navigate(Routes.BHW_DASHBOARD) {
+                                    popUpTo(Routes.BHW_DASHBOARD) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    e.message ?: "Failed to delete child profile.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = red)
+                ) {
+                    Text("Yes", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteConfirm = false }) {
+                    Text("No", color = Color.Black)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
 
     Scaffold(
         containerColor = backgroundColor,
@@ -237,7 +284,7 @@ fun DeleteChildProfileScreen(
                     DividerLine()
                     DeleteDataRow("Status Alerts", "${AppData.alerts.count { it.childId == childId }}")
                     DividerLine()
-                    DeleteDataRow("Documents", "5")
+                    DeleteDataRow("Documents", "$documentCount")
                 }
             }
 
@@ -291,17 +338,7 @@ fun DeleteChildProfileScreen(
                 }
 
                 Button(
-                    onClick = {
-                        scope.launch {
-                            isLoading = true
-                            AppData.deleteChild(childId)
-                            isLoading = false
-
-                            navController.navigate(Routes.BHW_DASHBOARD) {
-                                popUpTo(Routes.BHW_DASHBOARD) { inclusive = true }
-                            }
-                        }
-                    },
+                    onClick = { showDeleteConfirm = true },
                     modifier = Modifier
                         .weight(1f)
                         .height(56.dp),

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.childbmisystem.data.AppData
+import com.example.childbmisystem.navigation.Routes
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,9 +46,9 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
 
     val latest = child.latestBmi
 
-    // Pre-fill age as months (ageYears * 12 as approximation)
+    // Pre-fill age as the child's current month-based age.
     var fullName     by remember { mutableStateOf(child.fullName) }
-    var ageMonths    by remember { mutableStateOf((child.ageYears * 12).toString()) }
+    var ageMonths    by remember { mutableStateOf(child.ageMonths.toString()) }
     var gender       by remember { mutableStateOf(child.gender) }
     var genderExpanded by remember { mutableStateOf(false) }
     var heightCm     by remember { mutableStateOf(latest?.heightCm?.toString() ?: "") }
@@ -81,12 +83,13 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
     val cardBg       = Color(0xFFF5F5F5)
 
     // ── BMI live calculation ────────────────────────────────────────────────
-    val newBmi = remember(heightCm, weightKg) {
+    val enteredAgeMonths = ageMonths.toIntOrNull() ?: child.ageMonths
+    val newBmi = remember(heightCm, weightKg, enteredAgeMonths) {
         val h = heightCm.toDoubleOrNull() ?: 0.0
         val w = weightKg.toDoubleOrNull() ?: 0.0
-        if (h > 0 && w > 0) AppData.calculateBmi(h, w) else 0.0
+        if (h > 0 && w > 0) AppData.calculateBmi(h, w, enteredAgeMonths) else 0.0
     }
-    val bmiStatusLabel = if (newBmi > 0) AppData.bmiStatus(newBmi) else "No Data"
+    val bmiStatusLabel = if (newBmi > 0) AppData.bmiStatus(newBmi, enteredAgeMonths, gender) else "No Data"
     val bmiStatusColor = when (bmiStatusLabel) {
         "Normal"      -> primaryBlue
         "Overweight"  -> Color(0xFFFFA000)
@@ -199,7 +202,7 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .menuAnchor(),
+                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Color.Transparent,
@@ -436,6 +439,11 @@ fun UpdateChildProfileScreen(navController: NavController, childId: String) {
 
                             isLoading = false
                             saved = true
+                            Toast.makeText(context, "Child profile updated.", Toast.LENGTH_SHORT).show()
+                            navController.navigate(Routes.BHW_DASHBOARD) {
+                                popUpTo(Routes.BHW_DASHBOARD) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f).height(52.dp),

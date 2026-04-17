@@ -33,7 +33,7 @@ fun RegistrationScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("BHW") }
+    var selectedRole by remember { mutableStateOf<String?>(null) }
 
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
@@ -128,12 +128,12 @@ fun RegistrationScreen(navController: NavController) {
 
         // COMMON TEXTFIELD COLORS
         val textFieldColors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = green,
+            focusedBorderColor = Color.Black,
             unfocusedBorderColor = Color.LightGray,
             focusedTextColor = Color.Black,
             unfocusedTextColor = Color.Black,
-            cursorColor = green,
-            focusedLabelColor = green
+            cursorColor = Color.Black,
+            focusedLabelColor = Color.Black
         )
 
         // Full Name
@@ -217,12 +217,19 @@ fun RegistrationScreen(navController: NavController) {
                     isLoading = true
                     errorMessage = ""
 
+                    val role = selectedRole
+                    if (role == null) {
+                        isLoading = false
+                        errorMessage = "Please choose Register As."
+                        return@launch
+                    }
+
                     val success = AppData.register(
                         fullName = fullName,
                         username = email.lowercase(),
                         email = email,
                         password = password,
-                        role = selectedRole.lowercase(),
+                        role = role.lowercase(),
                         phoneNumber = "",
                         address = address
                     )

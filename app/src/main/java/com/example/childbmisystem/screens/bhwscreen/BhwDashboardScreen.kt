@@ -95,7 +95,7 @@ fun BhwDashboardScreen(navController: NavController) {
                             child = child,
                             onViewClick = { navController.navigate(Routes.viewChild(child.id)) },
                             onUpdateClick = { navController.navigate(Routes.updateChild(child.id)) },
-                            onSendAlertClick = { navController.navigate(Routes.SEND_ALERT) },
+                            onSendAlertClick = { navController.navigate(Routes.sendAlert(child.id)) },
                             onDeleteClick = { navController.navigate(Routes.deleteChild(child.id)) }
                         )
                     }
@@ -117,7 +117,7 @@ fun BhwCommonBottomBar(navController: NavController, currentRoute: String) {
         )
         NavigationBarItem(
             selected = false,
-            onClick  = { navController.navigate(Routes.SEND_ALERT) },
+            onClick  = { navController.navigate(Routes.sendAlert()) },
             icon     = { Icon(Icons.Default.NotificationsActive, contentDescription = null) },
             label    = { Text("Alerts") },
             colors   = appNavColors()
