@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -136,6 +137,31 @@ fun ParentDashboardScreen(navController: NavController) {
                     }
                 },
                 actions = {
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE8F1FF))
+                            .border(1.dp, AppCardBorder, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (currentUser?.photoUrl?.isNotBlank() == true) {
+                            AsyncImage(
+                                model = currentUser.photoUrl,
+                                contentDescription = "Profile Photo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Profile Photo",
+                                tint = AppTextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     IconButton(onClick = { showNotifications = true }) {
                         BadgedBox(
                             badge = {
@@ -411,6 +437,7 @@ fun ParentChildItemCard(
                         AsyncImage(
                             model = child.photoUrl,
                             contentDescription = child.fullName,
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {

@@ -40,7 +40,7 @@ fun RegistrationScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
-    val green = Color(0xFF48CF4F)
+    val green = Color(0xFF007958)
     val blue = Color(0xFF2F80ED)
 
     Column(

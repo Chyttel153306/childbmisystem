@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -36,8 +38,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.MenuDefaults
@@ -54,7 +54,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.childbmisystem.data.AppData
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -69,7 +72,6 @@ import java.util.Calendar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateChildProfileScreen(navController: NavController) {
-
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -78,17 +80,38 @@ fun CreateChildProfileScreen(navController: NavController) {
     var address by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("") }
-
     var gender by remember { mutableStateOf("Male") }
     var genderExpanded by remember { mutableStateOf(false) }
-    val genderOptions = listOf("Male", "Female")
-
     var isLoading by remember { mutableStateOf(false) }
+    var submitAttempted by remember { mutableStateOf(false) }
 
+    var selectedChildPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedChildPhotoFileName by remember { mutableStateOf<String?>(null) }
     var selectedEvidenceUri by remember { mutableStateOf<Uri?>(null) }
     var selectedEvidenceFileName by remember { mutableStateOf<String?>(null) }
 
-    val photoPickerLauncher = rememberLauncherForActivityResult(
+    val genderOptions = listOf("Male", "Female")
+    val inputBackgroundColor = Color(0xFFE8E9EC)
+    val cardBorderColor = Color(0xFFE0E0E0)
+    val primaryGreen = Color(0xFF007958)
+
+    val childPhotoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            selectedChildPhotoUri = it
+            selectedChildPhotoFileName = it.displayName(context.contentResolver)
+            Toast.makeText(context, "Child profile photo selected", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val proofPhotoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
@@ -104,19 +127,26 @@ fun CreateChildProfileScreen(navController: NavController) {
         }
     }
 
-    val hVal = height.toDoubleOrNull() ?: 0.0
-    val wVal = weight.toDoubleOrNull() ?: 0.0
-    val liveAgeMonths = ageMonths.toIntOrNull() ?: 0
-    val liveBmi = remember(hVal, wVal, liveAgeMonths) {
-        AppData.calculateBmi(hVal, wVal, liveAgeMonths)
+    val monthsValue = ageMonths.toIntOrNull()
+    val heightValue = height.toDoubleOrNull()
+    val weightValue = weight.toDoubleOrNull()
+    val liveAgeMonths = monthsValue ?: 0
+    val liveBmi = remember(heightValue, weightValue, liveAgeMonths) {
+        if ((heightValue ?: 0.0) > 0 && (weightValue ?: 0.0) > 0) {
+            AppData.calculateBmi(heightValue ?: 0.0, weightValue ?: 0.0, liveAgeMonths)
+        } else {
+            0.0
+        }
     }
     val liveBmiStatus = remember(liveBmi, liveAgeMonths, gender) {
-        AppData.bmiStatus(liveBmi, liveAgeMonths, gender)
+        if (liveBmi > 0) AppData.bmiStatus(liveBmi, liveAgeMonths, gender) else "No Data"
     }
 
-    val inputBackgroundColor = Color(0xFFE8E9EC)
-    val cardBorderColor = Color(0xFFE0E0E0)
-    val primaryGreen = Color(0xFF00C853)
+    val nameError = shouldShowRequiredError(name, submitAttempted)
+    val ageError = shouldShowPositiveWholeNumberError(ageMonths, submitAttempted)
+    val addressError = shouldShowRequiredError(address, submitAttempted)
+    val heightError = shouldShowPositiveDecimalError(height, submitAttempted)
+    val weightError = shouldShowPositiveDecimalError(weight, submitAttempted)
 
     Scaffold(
         containerColor = Color.White,
@@ -127,8 +157,8 @@ fun CreateChildProfileScreen(navController: NavController) {
                     .fillMaxWidth()
                     .padding(top = 16.dp, start = 8.dp, end = 16.dp, bottom = 8.dp)
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
+                androidx.compose.material3.IconButton(onClick = { navController.popBackStack() }) {
+                    androidx.compose.material3.Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = Color.Black
@@ -159,7 +189,6 @@ fun CreateChildProfileScreen(navController: NavController) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, cardBorderColor),
@@ -176,7 +205,8 @@ fun CreateChildProfileScreen(navController: NavController) {
                         placeholder = "Enter name",
                         value = name,
                         onValueChange = { name = it },
-                        backgroundColor = inputBackgroundColor
+                        backgroundColor = inputBackgroundColor,
+                        isError = nameError
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -184,10 +214,11 @@ fun CreateChildProfileScreen(navController: NavController) {
                             label = "Age (months)",
                             placeholder = "e.g. 24",
                             value = ageMonths,
-                            onValueChange = { ageMonths = it },
+                            onValueChange = { ageMonths = filterWholeNumberInput(it) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f),
-                            backgroundColor = inputBackgroundColor
+                            backgroundColor = inputBackgroundColor,
+                            isError = ageError
                         )
 
                         ExposedDropdownMenuBox(
@@ -254,8 +285,79 @@ fun CreateChildProfileScreen(navController: NavController) {
                         placeholder = "Enter address",
                         value = address,
                         onValueChange = { address = it },
-                        backgroundColor = inputBackgroundColor
+                        backgroundColor = inputBackgroundColor,
+                        isError = addressError
                     )
+
+                    Text(
+                        text = "Upload Child Profile",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
+
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(108.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFDDF0E7))
+                                .border(2.dp, primaryGreen, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selectedChildPhotoUri != null) {
+                                AsyncImage(
+                                    model = selectedChildPhotoUri,
+                                    contentDescription = "Child profile photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Filled.FileUpload,
+                                    contentDescription = "Child profile photo",
+                                    tint = primaryGreen,
+                                    modifier = Modifier.size(34.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { childPhotoPickerLauncher.launch(arrayOf("image/*")) },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
+                    ) {
+                        if (selectedChildPhotoUri != null) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = "Child Profile Photo Selected",
+                                tint = primaryGreen
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = selectedChildPhotoFileName ?: "Child Profile Photo Selected",
+                                color = primaryGreen,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Filled.FileUpload,
+                                contentDescription = "Upload Child Profile"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Upload Child Profile")
+                        }
+                    }
                 }
             }
 
@@ -282,19 +384,21 @@ fun CreateChildProfileScreen(navController: NavController) {
                             label = "Height (cm)",
                             placeholder = "Enter height",
                             value = height,
-                            onValueChange = { height = it },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            onValueChange = { height = filterPositiveDecimalInput(it) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f),
-                            backgroundColor = inputBackgroundColor
+                            backgroundColor = inputBackgroundColor,
+                            isError = heightError
                         )
                         FormInputField(
                             label = "Weight (kg)",
                             placeholder = "Enter weight",
                             value = weight,
-                            onValueChange = { weight = it },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            onValueChange = { weight = filterPositiveDecimalInput(it) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f),
-                            backgroundColor = inputBackgroundColor
+                            backgroundColor = inputBackgroundColor,
+                            isError = weightError
                         )
                     }
 
@@ -305,7 +409,11 @@ fun CreateChildProfileScreen(navController: NavController) {
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "BMI: $liveBmi  •  $liveBmiStatus",
+                            text = if (liveBmi > 0) {
+                                "BMI: $liveBmi  •  $liveBmiStatus"
+                            } else {
+                                "BMI: --  •  No Data"
+                            },
                             color = Color(0xFF4285F4),
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp
@@ -320,7 +428,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                     )
 
                     OutlinedButton(
-                        onClick = { photoPickerLauncher.launch(arrayOf("image/*")) },
+                        onClick = { proofPhotoPickerLauncher.launch(arrayOf("image/*")) },
                         enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -329,7 +437,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                     ) {
                         if (selectedEvidenceUri != null) {
-                            Icon(
+                            androidx.compose.material3.Icon(
                                 imageVector = Icons.Filled.CheckCircle,
                                 contentDescription = "Photo Selected",
                                 tint = primaryGreen
@@ -343,7 +451,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 overflow = TextOverflow.Ellipsis
                             )
                         } else {
-                            Icon(
+                            androidx.compose.material3.Icon(
                                 imageVector = Icons.Filled.FileUpload,
                                 contentDescription = "Upload Photo"
                             )
@@ -358,23 +466,16 @@ fun CreateChildProfileScreen(navController: NavController) {
 
             Button(
                 onClick = {
-                    if (name.isBlank() || ageMonths.isBlank() || height.isBlank() || weight.isBlank()) {
-                        Toast.makeText(context, "Fill all fields", Toast.LENGTH_SHORT).show()
+                    submitAttempted = true
+
+                    if (nameError || ageError || addressError || heightError || weightError) {
+                        Toast.makeText(context, "Please correct the incorrect input.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
-                    val months = ageMonths.toIntOrNull()
-                    val h = height.toDoubleOrNull()
-                    val w = weight.toDoubleOrNull()
-
-                    if (months == null || months <= 0) {
-                        Toast.makeText(context, "Enter a valid age in months", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    if (h == null || w == null) {
-                        Toast.makeText(context, "Invalid height or weight", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
+                    val months = monthsValue ?: return@Button
+                    val h = heightValue ?: return@Button
+                    val w = weightValue ?: return@Button
 
                     isLoading = true
 
@@ -388,17 +489,17 @@ fun CreateChildProfileScreen(navController: NavController) {
                             val dob = "%02d-%02d-%d".format(dobDay, dobMonth, dobYear)
 
                             val child = AppData.addChild(
-                                fullName = name,
+                                fullName = name.trim(),
                                 dob = dob,
                                 gender = gender,
-                                imageUri = null
+                                imageUri = selectedChildPhotoUri
                             )
 
                             AppData.addBmiRecord(
                                 childId = child.id,
                                 heightCm = h,
                                 weightKg = w,
-                                notes = address,
+                                notes = address.trim(),
                                 date = AppData.getCurrentDate(),
                                 evidenceUri = selectedEvidenceUri,
                                 evidenceMimeType = selectedEvidenceUri?.let { context.contentResolver.getType(it) }.orEmpty(),
@@ -409,9 +510,9 @@ fun CreateChildProfileScreen(navController: NavController) {
                             navController.popBackStack()
                         } catch (e: Exception) {
                             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                        } finally {
+                            isLoading = false
                         }
-
-                        isLoading = false
                     }
                 },
                 modifier = Modifier
@@ -440,7 +541,8 @@ fun FormInputField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    backgroundColor: Color
+    backgroundColor: Color,
+    isError: Boolean = false
 ) {
     Column(modifier = modifier) {
         Text(
@@ -457,6 +559,12 @@ fun FormInputField(
             placeholder = { Text(text = placeholder, color = Color.Gray) },
             keyboardOptions = keyboardOptions,
             singleLine = true,
+            isError = isError,
+            supportingText = {
+                if (isError) {
+                    Text("Incorrect input", color = Color(0xFFD32F2F))
+                }
+            },
             shape = RoundedCornerShape(8.dp),
             colors = TextFieldDefaults.colors(
                 focusedTextColor = Color.Black,
@@ -465,13 +573,55 @@ fun FormInputField(
                 focusedContainerColor = backgroundColor,
                 unfocusedContainerColor = backgroundColor,
                 disabledContainerColor = backgroundColor,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent
+                focusedIndicatorColor = if (isError) Color(0xFFD32F2F) else Color.Transparent,
+                unfocusedIndicatorColor = if (isError) Color(0xFFD32F2F) else Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                errorIndicatorColor = Color(0xFFD32F2F),
+                errorContainerColor = backgroundColor
             ),
             modifier = Modifier.fillMaxWidth()
         )
     }
+}
+
+private fun shouldShowRequiredError(value: String, submitAttempted: Boolean): Boolean {
+    return submitAttempted && value.trim().isBlank()
+}
+
+private fun shouldShowPositiveWholeNumberError(value: String, submitAttempted: Boolean): Boolean {
+    if (value.isNotBlank()) {
+        return value.toIntOrNull()?.let { it <= 0 } != false
+    }
+    return submitAttempted
+}
+
+private fun shouldShowPositiveDecimalError(value: String, submitAttempted: Boolean): Boolean {
+    if (value.isNotBlank()) {
+        return value.toDoubleOrNull()?.let { it <= 0.0 } != false
+    }
+    return submitAttempted
+}
+
+private fun filterWholeNumberInput(input: String): String = input.filter { it.isDigit() }
+
+private fun filterPositiveDecimalInput(input: String): String {
+    val result = StringBuilder()
+    var hasDecimal = false
+
+    input.forEach { char ->
+        when {
+            char.isDigit() -> result.append(char)
+            char == '.' && !hasDecimal -> {
+                if (result.isEmpty()) {
+                    result.append("0")
+                }
+                result.append(char)
+                hasDecimal = true
+            }
+        }
+    }
+
+    return result.toString()
 }
 
 private fun Uri.displayName(contentResolver: android.content.ContentResolver): String {

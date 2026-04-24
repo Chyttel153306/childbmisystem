@@ -66,7 +66,7 @@ fun DeleteChildProfileScreen(
             title = { Text("Delete Child Profile", color = Color.Black, fontWeight = FontWeight.Bold) },
             text = { Text("Are you sure you want to delete this child profile?", color = Color.Black) },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         showDeleteConfirm = false
                         scope.launch {
@@ -75,7 +75,7 @@ fun DeleteChildProfileScreen(
                                 AppData.deleteChild(childId)
                                 Toast.makeText(context, "Successfully deleted.", Toast.LENGTH_SHORT).show()
                                 navController.navigate(Routes.BHW_DASHBOARD) {
-                                    popUpTo(Routes.BHW_DASHBOARD) { inclusive = true }
+                                    popUpTo(0)
                                     launchSingleTop = true
                                 }
                             } catch (e: Exception) {
@@ -89,14 +89,18 @@ fun DeleteChildProfileScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = red)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = red),
+                    border = BorderStroke(1.dp, red)
                 ) {
-                    Text("Yes", color = Color.White)
+                    Text("Yes", color = red)
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showDeleteConfirm = false }) {
-                    Text("No", color = Color.Black)
+                Button(
+                    onClick = { showDeleteConfirm = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007958))
+                ) {
+                    Text("No", color = Color.White)
                 }
             },
             containerColor = Color.White
@@ -318,54 +322,53 @@ fun DeleteChildProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                OutlinedButton(
+                Button(
                     onClick = { navController.popBackStack() },
                     modifier = Modifier
                         .weight(1f)
                         .height(56.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
-                        contentColor = Color.Black
-                    ),
-                    border = BorderStroke(1.dp, cardBorder)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF007958),
+                        contentColor = Color.White
+                    )
                 ) {
                     Text(
                         text = "Cancel",
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
-                Button(
+                OutlinedButton(
                     onClick = { showDeleteConfirm = true },
                     modifier = Modifier
                         .weight(1f)
                         .height(56.dp),
                     shape = RoundedCornerShape(14.dp),
                     enabled = !isLoading,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = red,
-                        contentColor = Color.White
-                    )
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = red),
+                    border = BorderStroke(1.dp, red)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = Color.White,
+                            color = red,
                             strokeWidth = 2.dp
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = null,
+                            tint = red,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Delete",
                             fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = red
                         )
                     }
                 }

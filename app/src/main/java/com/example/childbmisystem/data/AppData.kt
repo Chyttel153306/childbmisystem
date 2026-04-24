@@ -21,7 +21,8 @@ data class User(
     val role: String = "",
     val email: String = "",
     val phoneNumber: String = "",
-    val address: String = ""
+    val address: String = "",
+    val photoUrl: String = ""
 ) {
     fun toMap() = mapOf(
         "fullName" to fullName,
@@ -29,7 +30,8 @@ data class User(
         "role" to role,
         "email" to email,
         "phoneNumber" to phoneNumber,
-        "address" to address
+        "address" to address,
+        "photoUrl" to photoUrl
     )
 }
 
@@ -174,11 +176,16 @@ object AppData {
     }
 
     fun loadData() {
-        val role = currentUser.value?.role ?: return
+        val user = currentUser.value ?: return
+        val role = user.role
 
         if (!isListening) {
             children.clear()
             alerts.clear()
+
+            FirebaseRepository.startListeningToCurrentUser(user.id) { updatedUser ->
+                currentUser.value = updatedUser
+            }
 
             FirebaseRepository.startListeningToChildren(role) { updatedChildren ->
                 children.clear()
@@ -197,14 +204,23 @@ object AppData {
     suspend fun updateCurrentUserProfile(
         fullName: String,
         phoneNumber: String,
-        address: String
+        address: String,
+        profileImageUri: Uri? = null
     ): Boolean {
         val existingUser = currentUser.value ?: return false
+
+        val uploadedPhotoUrl = if (profileImageUri != null) {
+            val uploadResult = FirebaseRepository.uploadUserProfilePhoto(existingUser.id, profileImageUri)
+            uploadResult.getOrNull() ?: profileImageUri.toString()
+        } else {
+            existingUser.photoUrl
+        }
 
         val updatedUser = existingUser.copy(
             fullName = fullName.trim(),
             phoneNumber = phoneNumber.trim(),
-            address = address.trim()
+            address = address.trim(),
+            photoUrl = uploadedPhotoUrl
         )
 
         val result = FirebaseRepository.saveUser(updatedUser)
@@ -244,9 +260,7 @@ object AppData {
         var photoUrl = ""
         if (imageUri != null) {
             val uploadResult = FirebaseRepository.uploadChildPhoto(childId, imageUri)
-            if (uploadResult.isSuccess) {
-                photoUrl = uploadResult.getOrNull() ?: ""
-            }
+            photoUrl = uploadResult.getOrNull() ?: imageUri.toString()
         }
 
         val finalChild = tempChild.copy(id = childId, photoUrl = photoUrl)
@@ -383,15 +397,23 @@ object AppData {
         childId: String,
         fullName: String,
         ageMonths: Int,
-        gender: String
+        gender: String,
+        imageUri: Uri? = null
     ) {
-        getChild(childId) ?: return
+        val existingChild = getChild(childId) ?: return
 
         val newDob = dobFromAgeMonths(ageMonths)
+        var photoUrl = existingChild.photoUrl
+        if (imageUri != null) {
+            val uploadResult = FirebaseRepository.uploadChildPhoto(childId, imageUri)
+            photoUrl = uploadResult.getOrNull() ?: imageUri.toString()
+        }
+
         val updates = mapOf(
             "fullName" to fullName,
             "dateOfBirth" to newDob,
-            "gender" to gender
+            "gender" to gender,
+            "photoUrl" to photoUrl
         )
 
         FirebaseRepository.db
@@ -414,6 +436,7 @@ object AppData {
                 fullName = fullName,
                 dateOfBirth = newDob,
                 gender = gender,
+                photoUrl = photoUrl,
                 bmiHistory = updatedHistory
             )
         }

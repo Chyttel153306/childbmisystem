@@ -35,6 +35,7 @@ object FirebaseRepository {
     val currentUid: String?
         get() = auth.currentUser?.uid
 
+    private var userListener: ListenerRegistration? = null
     private var childrenListener: ListenerRegistration? = null
     private var alertsListener: ListenerRegistration? = null
 
@@ -58,6 +59,7 @@ object FirebaseRepository {
     }
 
     fun logout() {
+        stopListeningToCurrentUser()
         stopListeningToChildren()
         stopListeningToAlerts()
         auth.signOut()
@@ -114,10 +116,42 @@ object FirebaseRepository {
         role = getString("role") ?: "",
         email = getString("email") ?: "",
         phoneNumber = getString("phoneNumber") ?: "",
-        address = getString("address") ?: ""
+        address = getString("address") ?: "",
+        photoUrl = getString("photoUrl") ?: ""
     )
 
+    suspend fun uploadUserProfilePhoto(userId: String, imageUri: Uri): Result<String> = try {
+        val storageRef = storage.reference.child("user_profiles/$userId.jpg")
+        storageRef.putFile(imageUri).await()
+        val downloadUrl = storageRef.downloadUrl.await()
+        Result.success(downloadUrl.toString())
+    } catch (e: Exception) {
+        Log.e(TAG, "Upload user profile photo failed", e)
+        Result.failure(e)
+    }
+
     // ───────────────── CHILDREN (REAL-TIME) ─────────────────
+
+    fun startListeningToCurrentUser(userId: String, onUserChanged: (User) -> Unit) {
+        stopListeningToCurrentUser()
+
+        userListener = db.collection("users")
+            .document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "Listen to current user failed", error)
+                    return@addSnapshotListener
+                }
+
+                val user = snapshot?.takeIf { it.exists() }?.toUser() ?: return@addSnapshotListener
+                onUserChanged(user)
+            }
+    }
+
+    fun stopListeningToCurrentUser() {
+        userListener?.remove()
+        userListener = null
+    }
 
     fun startListeningToChildren(role: String, onChildrenChanged: (List<Child>) -> Unit) {
         stopListeningToChildren()

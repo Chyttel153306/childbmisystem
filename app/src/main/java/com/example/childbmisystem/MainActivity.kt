@@ -1,6 +1,8 @@
 package com.example.childbmisystem
 
 import android.os.Bundle
+import android.os.Build
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,11 @@ class MainActivity : ComponentActivity() {
                     AppNavGraph()
                 }
             }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            findViewById<View>(android.R.id.content)?.scrollCaptureHint =
+                View.SCROLL_CAPTURE_HINT_INCLUDE
         }
     }
 

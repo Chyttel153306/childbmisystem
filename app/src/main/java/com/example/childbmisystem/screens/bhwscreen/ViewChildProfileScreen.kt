@@ -2,8 +2,8 @@ package com.example.childbmisystem.screens.bhwscreen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,10 +14,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.navigation.Routes
 
@@ -79,10 +81,19 @@ fun ViewChildProfileScreen(navController: NavController, childId: String) {
                         Modifier.size(56.dp).background(Color(0xFFEDE7F6), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            Icons.Default.AccountCircle, null,
-                            tint = Color(0xFF7E57C2), modifier = Modifier.size(32.dp)
-                        )
+                        if (child.photoUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = child.photoUrl,
+                                contentDescription = child.fullName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.AccountCircle, null,
+                                tint = Color(0xFF7E57C2), modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
                     Spacer(Modifier.width(16.dp))
                     Column {
@@ -182,7 +193,7 @@ fun ViewChildProfileScreen(navController: NavController, childId: String) {
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50),
+                        containerColor = Color(0xFF007958),
                         contentColor = Color.White
                     )
                 ) {
@@ -194,7 +205,7 @@ fun ViewChildProfileScreen(navController: NavController, childId: String) {
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50),
+                        containerColor = Color(0xFF007958),
                         contentColor = Color.White
                     )
                 ) {
@@ -216,7 +227,7 @@ private fun MeasurementItem(emoji: String, label: String, value: String) {
 }
 
 fun statusColor(status: String) = when (status) {
-    "Normal"      -> Color(0xFF4CAF50)
+    "Normal"      -> Color(0xFF007958)
     "Overweight"  -> Color(0xFFFF9800)
     "Underweight" -> Color(0xFFF44336)
     "Obese"       -> Color(0xFF9C27B0)

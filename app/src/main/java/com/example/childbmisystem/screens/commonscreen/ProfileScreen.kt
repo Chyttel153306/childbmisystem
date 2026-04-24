@@ -1,6 +1,10 @@
 package com.example.childbmisystem.screens.commonscreen
 
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +34,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,10 +44,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,11 +61,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.navigation.Routes
 import kotlinx.coroutines.delay
@@ -65,8 +75,8 @@ import kotlinx.coroutines.launch
 
 private val AppBg = Color(0xFFF7F8FA)
 private val WhiteCard = Color(0xFFFFFFFF)
-private val Green = Color(0xFF4FD19A)
-private val DarkGreen = Color(0xFF1F7A56)
+private val Green = Color(0xFF007958)
+private val DarkGreen = Color(0xFF007958)
 private val SoftGreen = Color(0xFFE3F7EE)
 private val SoftGray = Color(0xFFF1F3F5)
 private val BorderGray = Color(0xFFE5E7EB)
@@ -88,21 +98,52 @@ fun ProfileScreen(navController: NavController) {
     var showPersonalInfo by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isLoggingOut by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
 
     var fullName by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
+    var selectedProfileUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedProfileFileName by remember { mutableStateOf<String?>(null) }
+    var cachedProfilePhotoUrl by remember { mutableStateOf("") }
 
-    LaunchedEffect(user?.id, user?.fullName, user?.phoneNumber, user?.address) {
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            selectedProfileUri = it
+            selectedProfileFileName = it.displayName(context.contentResolver)
+            isEditing = true
+            showPersonalInfo = true
+            Toast.makeText(context, "Profile photo selected.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(user?.id, user?.fullName, user?.phoneNumber, user?.address, user?.photoUrl) {
         fullName = user?.fullName.orEmpty()
         phoneNumber = user?.phoneNumber.orEmpty()
         address = user?.address.orEmpty()
+        cachedProfilePhotoUrl = loadCachedProfilePhoto(context, user?.id.orEmpty())
+        if (!user?.photoUrl.isNullOrBlank()) {
+            saveCachedProfilePhoto(context, user?.id.orEmpty(), user?.photoUrl.orEmpty())
+            cachedProfilePhotoUrl = user?.photoUrl.orEmpty()
+        }
+        selectedProfileUri = null
+        selectedProfileFileName = null
     }
 
     fun resetFields() {
         fullName = user?.fullName.orEmpty()
         phoneNumber = user?.phoneNumber.orEmpty()
         address = user?.address.orEmpty()
+        selectedProfileUri = null
+        selectedProfileFileName = null
     }
 
     if (user == null) {
@@ -115,6 +156,55 @@ fun ProfileScreen(navController: NavController) {
             }
         }
         return
+    }
+
+    val displayPhotoModel = when {
+        selectedProfileUri != null -> selectedProfileUri
+        cachedProfilePhotoUrl.isNotBlank() -> cachedProfilePhotoUrl
+        user.photoUrl.isNotBlank() -> user.photoUrl
+        else -> null
+    }
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = {
+                Text("Log Out", color = Color.Black, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Are you sure you want to log out?", color = Color.Black)
+            },
+            confirmButton = {
+                OutlinedButton(
+                    onClick = {
+                        showLogoutConfirm = false
+                        scope.launch {
+                            isLoggingOut = true
+                            delay(300)
+                            AppData.logout()
+                            isLoggingOut = false
+                            navController.navigate(Routes.LOGIN) {
+                                popUpTo(0)
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Danger),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)
+                ) {
+                    Text("Yes", color = Danger)
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { showLogoutConfirm = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = DarkGreen)
+                ) {
+                    Text("No", color = Color.White)
+                }
+            },
+            containerColor = Color.White
+        )
     }
 
     Surface(
@@ -153,20 +243,7 @@ fun ProfileScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.width(18.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "My Profile",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "View and manage your account details.",
-                        fontSize = 14.sp,
-                        color = TextSecondary
-                    )
-                }
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -218,18 +295,53 @@ fun ProfileScreen(navController: NavController) {
                             .border(2.dp, Green, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
+                        when {
+                            displayPhotoModel != null -> {
+                                AsyncImage(
+                                    model = displayPhotoModel,
+                                    contentDescription = "Profile photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            else -> {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Profile",
+                                    tint = Green,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            isEditing = true
+                            showPersonalInfo = true
+                            photoPickerLauncher.launch(arrayOf("image/*"))
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DarkGreen)
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = Green,
-                            modifier = Modifier.size(64.dp)
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Upload photo",
+                            tint = DarkGreen
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (selectedProfileFileName.isNullOrBlank()) "Upload Profile Photo" else "Photo Ready",
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
 
                     Text(
-                        text = user.fullName.ifBlank { "User" },
+                        text = fullName.ifBlank { "User" },
                         fontSize = 32.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = TextPrimary
@@ -276,7 +388,7 @@ fun ProfileScreen(navController: NavController) {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = user.address.ifBlank { "Address not set" },
+                            text = address.ifBlank { "Address not set" },
                             fontSize = 14.sp,
                             color = TextPrimary
                         )
@@ -437,12 +549,23 @@ fun ProfileScreen(navController: NavController) {
                                             val saved = AppData.updateCurrentUserProfile(
                                                 fullName = cleanName,
                                                 phoneNumber = phoneNumber,
-                                                address = cleanAddress
+                                                address = cleanAddress,
+                                                profileImageUri = selectedProfileUri
                                             )
                                             isSaving = false
 
                                             if (saved) {
+                                                if (selectedProfileUri != null) {
+                                                    saveCachedProfilePhoto(
+                                                        context = context,
+                                                        userId = user.id,
+                                                        photoUrl = selectedProfileUri.toString()
+                                                    )
+                                                    cachedProfilePhotoUrl = selectedProfileUri.toString()
+                                                }
                                                 isEditing = false
+                                                selectedProfileUri = null
+                                                selectedProfileFileName = null
                                                 Toast.makeText(
                                                     context,
                                                     "Profile updated successfully.",
@@ -490,50 +613,32 @@ fun ProfileScreen(navController: NavController) {
                     .background(WhiteCard)
                     .border(2.dp, Danger, RoundedCornerShape(24.dp))
                     .clickable(enabled = !isLoggingOut) {
-                        scope.launch {
-                            isLoggingOut = true
-                            delay(300)
-                            AppData.logout()
-                            isLoggingOut = false
-                            navController.navigate(Routes.LOGIN) {
-                                popUpTo(0)
-                            }
-                        }
+                        showLogoutConfirm = true
                     }
                     .padding(vertical = 22.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isLoggingOut) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = Danger,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Log Out",
-                                tint = Danger,
-                                modifier = Modifier.size(30.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Log Out",
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isLoggingOut) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
                             color = Danger,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = "Log Out",
+                            tint = Danger,
+                            modifier = Modifier.size(30.dp)
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Sign out of your account",
-                        color = TextSecondary,
-                        fontSize = 14.sp
+                        text = "Log Out",
+                        color = Danger,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -579,6 +684,36 @@ private fun ProfileField(
             )
         )
     }
+}
+
+private fun Uri.displayName(contentResolver: android.content.ContentResolver): String {
+    return runCatching {
+        contentResolver.query(this, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    cursor.getString(nameIndex)
+                } else {
+                    lastPathSegment?.substringAfterLast('/') ?: "Profile Photo"
+                }
+            } ?: (lastPathSegment?.substringAfterLast('/') ?: "Profile Photo")
+    }.getOrDefault("Profile Photo")
+}
+
+private fun loadCachedProfilePhoto(context: android.content.Context, userId: String): String {
+    if (userId.isBlank()) return ""
+    val prefs = context.getSharedPreferences("profile_photo_cache", android.content.Context.MODE_PRIVATE)
+    return prefs.getString("photo_$userId", "") ?: ""
+}
+
+private fun saveCachedProfilePhoto(
+    context: android.content.Context,
+    userId: String,
+    photoUrl: String
+) {
+    if (userId.isBlank() || photoUrl.isBlank()) return
+    val prefs = context.getSharedPreferences("profile_photo_cache", android.content.Context.MODE_PRIVATE)
+    prefs.edit().putString("photo_$userId", photoUrl).apply()
 }
 
 @Composable

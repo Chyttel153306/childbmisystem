@@ -53,13 +53,13 @@ import java.util.Locale
 
 private val ScreenBg = Color(0xFFF2F2F2)
 private val CardBg = Color.White
-private val GreenCard = Color(0xFF35B558)
+private val GreenCard = Color(0xFF007958)
 private val PurpleChipBg = Color(0xFFF2DDF7)
 private val PurpleChipText = Color(0xFFA23AB7)
 private val BlackText = Color(0xFF111111)
 private val GrayText = Color(0xFF555555)
 private val DividerColor = Color(0xFFE3E3E3)
-private val DisabledButton = Color(0xFFB9D9C0)
+private val DisabledButton = Color(0xFF8AB8AA)
 
 @Composable
 fun ChildHistoryScreen(navController: NavController, childId: String) {
@@ -417,7 +417,7 @@ private fun formatNumber(value: Double): String {
 }
 
 private fun statusTextColor(status: String): Color = when (status) {
-    "Normal" -> Color(0xFF2E9B50)
+    "Normal" -> Color(0xFF007958)
     "Overweight" -> Color(0xFFCF7A0A)
     "Underweight" -> Color(0xFFD34141)
     "Obese" -> PurpleChipText
