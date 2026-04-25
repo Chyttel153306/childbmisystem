@@ -63,14 +63,15 @@ fun LoginScreen(navController: NavController) {
             Spacer(Modifier.height(16.dp))
 
             Text(
-                "Child BMI Monitoring",
+                "KiDoc",
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                color = Color.Black
             )
 
             Text(
-                "Child BMI Record",
+                "Child BMI Monitoring",
                 fontSize = 14.sp,
                 color = Color.Gray,
                 modifier = Modifier.padding(bottom = 28.dp)
