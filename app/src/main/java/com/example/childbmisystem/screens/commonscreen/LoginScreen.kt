@@ -3,7 +3,6 @@ package com.example.childbmisystem.screens.commonscreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.childbmisystem.data.AppData
 import com.example.childbmisystem.navigation.Routes
+import com.example.childbmisystem.ui.theme.components.KiDocLogo
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,15 +50,7 @@ fun LoginScreen(navController: NavController) {
             verticalArrangement = Arrangement.Center
         ) {
 
-            // Icon
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .background(Color(0xFF00C8FF), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
-            }
+            KiDocLogo()
 
             Spacer(Modifier.height(16.dp))
 

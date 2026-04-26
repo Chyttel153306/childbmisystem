@@ -324,6 +324,8 @@ object AppData {
     ) {
         val child = getChild(childId)
         val childAgeMonths = child?.ageMonths
+
+
         val childGender = child?.gender
         val bmi = calculateBmi(heightCm, weightKg, childAgeMonths)
         val initialEvidenceUrl = evidenceUri?.toString().orEmpty()
