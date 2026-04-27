@@ -1,10 +1,13 @@
 package com.example.childbmisystem.screens.commonscreen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 
@@ -26,7 +30,7 @@ import coil.compose.AsyncImage
 @Composable
 fun EvidencePreviewScreen(
     navController: NavController,
-    imageUrl: String
+    imageUrls: List<String>
 ) {
     Scaffold(
         containerColor = Color.Black,
@@ -48,19 +52,29 @@ fun EvidencePreviewScreen(
             )
         }
     ) { padding ->
-        Box(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
                 .padding(padding),
-            contentAlignment = Alignment.Center
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = "Evidence photo",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth()
-            )
+            itemsIndexed(imageUrls.take(2)) { index, imageUrl ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = if (index == 0) 12.dp else 0.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Evidence photo ${index + 1}",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 }

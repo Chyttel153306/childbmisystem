@@ -170,9 +170,9 @@ fun LoginScreen(navController: NavController) {
                         errorMessage = ""
 
                         val role = selectedRole
-                        if (role == null) {
+                        if (email.trim().isBlank() || password.isBlank() || role == null) {
                             isLoading = false
-                            errorMessage = "Please choose Login As."
+                            errorMessage = "Invalid input. Please try again."
                             return@launch
                         }
 

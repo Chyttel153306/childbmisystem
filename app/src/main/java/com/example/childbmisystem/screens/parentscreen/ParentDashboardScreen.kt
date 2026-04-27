@@ -458,7 +458,7 @@ fun ParentChildItemCard(
                         fontSize = 16.sp
                     )
                     Text(
-                        text = "${child.ageYears} yrs",
+                        text = child.ageMonthLabel,
                         fontSize = 13.sp
                     )
 

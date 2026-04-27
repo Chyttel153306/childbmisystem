@@ -41,9 +41,10 @@ object FirebaseRepository {
 
     // ───────────────── AUTH ─────────────────
 
-    suspend fun loginWithEmail(email: String, password: String): Result<Unit> = try {
-        auth.signInWithEmailAndPassword(email, password).await()
-        Result.success(Unit)
+    suspend fun loginWithEmail(email: String, password: String): Result<String> = try {
+        val res = auth.signInWithEmailAndPassword(email, password).await()
+        val uid = res.user?.uid ?: ""
+        Result.success(uid)
     } catch (e: Exception) {
         Log.e(TAG, "Login failed", e)
         Result.failure(e)
@@ -247,12 +248,13 @@ object FirebaseRepository {
         childId: String,
         recordId: String,
         evidenceUri: Uri,
-        evidenceFileName: String
+        evidenceFileName: String,
+        evidenceIndex: Int = 1
     ): Result<String> = try {
         val safeFileName = sanitizeFileName(
             if (evidenceFileName.isNotBlank()) evidenceFileName else "$recordId.jpg"
         )
-        val storageRef = storage.reference.child("bmi_evidence/$childId/$recordId-$safeFileName")
+        val storageRef = storage.reference.child("bmi_evidence/$childId/$recordId-$evidenceIndex-$safeFileName")
         storageRef.putFile(evidenceUri).await()
         val downloadUrl = storageRef.downloadUrl.await()
         Result.success(downloadUrl.toString())
@@ -275,6 +277,17 @@ object FirebaseRepository {
                 val evidenceUrl = doc.getString("evidenceUrl")
                     ?: doc.getString("photoUrl")
                     ?: ""
+                val evidenceUrls = (doc.get("evidenceUrls") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?.filter { it.isNotBlank() }
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: listOfNotNull(evidenceUrl.takeIf { it.isNotBlank() })
+                val evidenceMimeTypes = (doc.get("evidenceMimeTypes") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?: emptyList()
+                val evidenceFileNames = (doc.get("evidenceFileNames") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?: emptyList()
                 BmiRecord(
                     id = doc.id,
                     date = doc.getString("date") ?: "",
@@ -286,8 +299,11 @@ object FirebaseRepository {
                     recordedBy = doc.getString("recordedBy") ?: "",
                     evidenceUrl = evidenceUrl,
                     photoUrl = doc.getString("photoUrl") ?: evidenceUrl,
+                    evidenceUrls = evidenceUrls,
                     evidenceMimeType = doc.getString("evidenceMimeType") ?: "",
-                    evidenceFileName = doc.getString("evidenceFileName") ?: ""
+                    evidenceFileName = doc.getString("evidenceFileName") ?: "",
+                    evidenceMimeTypes = evidenceMimeTypes,
+                    evidenceFileNames = evidenceFileNames
                 )
             }
     } catch (e: Exception) {

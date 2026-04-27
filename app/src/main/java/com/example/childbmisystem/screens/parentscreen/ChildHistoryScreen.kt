@@ -140,10 +140,10 @@ fun ChildHistoryScreen(navController: NavController, childId: String) {
                     ChildHistoryCard(
                         record = record,
                         fallbackPhotoUrl = child.photoUrl,
-                        onViewEvidenceClick = { imageUrl ->
+                        onViewEvidenceClick = { imageUrls ->
                             navController.currentBackStackEntry
                                 ?.savedStateHandle
-                                ?.set("evidence_url", imageUrl)
+                                ?.set("evidence_urls", ArrayList(imageUrls))
                             navController.navigate(Routes.EVIDENCE_PREVIEW)
                         }
                     )
@@ -253,13 +253,12 @@ private fun TotalRecordsCard(total: Int) {
 private fun ChildHistoryCard(
     record: BmiRecord,
     fallbackPhotoUrl: String,
-    onViewEvidenceClick: (String) -> Unit
+    onViewEvidenceClick: (List<String>) -> Unit
 ) {
-    val evidenceUrl = record.evidenceUrl
-        .ifBlank { record.photoUrl }
-        .ifBlank { fallbackPhotoUrl }
-        .trim()
-    val hasEvidence = evidenceUrl.isNotBlank()
+    val evidenceUrls = record.allEvidenceUrls
+        .ifEmpty { listOf(fallbackPhotoUrl.trim()).filter { it.isNotBlank() } }
+        .take(2)
+    val hasEvidence = evidenceUrls.isNotEmpty()
 
     Card(
         modifier = Modifier
@@ -334,7 +333,7 @@ private fun ChildHistoryCard(
             Spacer(modifier = Modifier.height(18.dp))
 
             Button(
-                onClick = { if (hasEvidence) onViewEvidenceClick(evidenceUrl) },
+                onClick = { if (hasEvidence) onViewEvidenceClick(evidenceUrls) },
                 enabled = hasEvidence,
                 modifier = Modifier
                     .fillMaxWidth()

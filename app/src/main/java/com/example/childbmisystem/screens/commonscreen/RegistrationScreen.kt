@@ -218,20 +218,26 @@ fun RegistrationScreen(navController: NavController) {
                     errorMessage = ""
 
                     val role = selectedRole
-                    if (role == null) {
+                    if (
+                        fullName.trim().isBlank() ||
+                        address.trim().isBlank() ||
+                        email.trim().isBlank() ||
+                        password.isBlank() ||
+                        role == null
+                    ) {
                         isLoading = false
-                        errorMessage = "Please choose Register As."
+                        errorMessage = "Invalid input. Please try again."
                         return@launch
                     }
 
                     val success = AppData.register(
-                        fullName = fullName,
-                        username = email.lowercase(),
-                        email = email,
+                        fullName = fullName.trim(),
+                        username = email.trim().lowercase(),
+                        email = email.trim(),
                         password = password,
                         role = role.lowercase(),
                         phoneNumber = "",
-                        address = address
+                        address = address.trim()
                     )
 
                     if (success) {

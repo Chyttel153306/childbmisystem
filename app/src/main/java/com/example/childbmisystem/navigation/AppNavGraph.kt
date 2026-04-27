@@ -4,10 +4,20 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -26,6 +36,9 @@ import com.example.childbmisystem.screens.commonscreen.RegistrationScreen
 import com.example.childbmisystem.screens.bhwscreen.ViewChildProfileScreen
 import com.example.childbmisystem.screens.parentscreen.CreateChildProfileScreen
 import com.example.childbmisystem.screens.parentscreen.ParentDashboardScreen
+import kotlinx.coroutines.delay
+
+private const val SESSION_TIMEOUT_MILLIS = 15 * 60 * 1000L
 
 object Routes {
 
@@ -56,6 +69,8 @@ object Routes {
 
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
+    var lastInteractionAt by remember { mutableStateOf(System.currentTimeMillis()) }
+    val currentUser = AppData.currentUser.value
 
     LaunchedEffect(Unit) {
         val uid = FirebaseRepository.currentUid
@@ -68,140 +83,172 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = Routes.LOGIN,
-        enterTransition = {
-            fadeIn(animationSpec = tween(220)) +
-                slideInHorizontally(
-                    initialOffsetX = { it / 6 },
-                    animationSpec = tween(260)
-                )
-        },
-        exitTransition = {
-            fadeOut(animationSpec = tween(180)) +
-                slideOutHorizontally(
-                    targetOffsetX = { -it / 10 },
-                    animationSpec = tween(220)
-                )
-        },
-        popEnterTransition = {
-            fadeIn(animationSpec = tween(220)) +
-                slideInHorizontally(
-                    initialOffsetX = { -it / 6 },
-                    animationSpec = tween(260)
-                )
-        },
-        popExitTransition = {
-            fadeOut(animationSpec = tween(180)) +
-                slideOutHorizontally(
-                    targetOffsetX = { it / 10 },
-                    animationSpec = tween(220)
-                )
+    LaunchedEffect(currentUser?.id, lastInteractionAt) {
+        if (currentUser == null) return@LaunchedEffect
+
+        delay(SESSION_TIMEOUT_MILLIS)
+        if (System.currentTimeMillis() - lastInteractionAt >= SESSION_TIMEOUT_MILLIS) {
+            AppData.logout()
+            navController.navigate(Routes.LOGIN) {
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                launchSingleTop = true
+            }
         }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(currentUser?.id) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        if (AppData.currentUser.value != null) {
+                            lastInteractionAt = System.currentTimeMillis()
+                        }
+                    }
+                }
+            }
     ) {
+        NavHost(
+            navController = navController,
+            startDestination = Routes.LOGIN,
+            enterTransition = {
+                fadeIn(animationSpec = tween(220)) +
+                    slideInHorizontally(
+                        initialOffsetX = { it / 6 },
+                        animationSpec = tween(260)
+                    )
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(180)) +
+                    slideOutHorizontally(
+                        targetOffsetX = { -it / 10 },
+                        animationSpec = tween(220)
+                    )
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(220)) +
+                    slideInHorizontally(
+                        initialOffsetX = { -it / 6 },
+                        animationSpec = tween(260)
+                    )
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(180)) +
+                    slideOutHorizontally(
+                        targetOffsetX = { it / 10 },
+                        animationSpec = tween(220)
+                    )
+            }
+        ) {
 
-        // ================= AUTH =================
+            // ================= AUTH =================
 
-        composable(Routes.LOGIN) {
-            LoginScreen(navController)
-        }
+            composable(Routes.LOGIN) {
+                LoginScreen(navController)
+            }
 
-        composable(Routes.REGISTER) {
-            RegistrationScreen(navController)
-        }
+            composable(Routes.REGISTER) {
+                RegistrationScreen(navController)
+            }
 
-        // ================= DASHBOARDS =================
+            // ================= DASHBOARDS =================
 
-        composable(Routes.PARENT_DASHBOARD) {
-            ParentDashboardScreen(navController)
-        }
+            composable(Routes.PARENT_DASHBOARD) {
+                ParentDashboardScreen(navController)
+            }
 
-        composable(Routes.BHW_DASHBOARD) {
-            BhwDashboardScreen(navController)
-        }
+            composable(Routes.BHW_DASHBOARD) {
+                BhwDashboardScreen(navController)
+            }
 
         // ================= SHARED PROFILE =================
         // Both routes point to the same ProfileScreen.
         // It detects the user's role internally and shows
         // the correct content + bottom bar destination.
 
-        composable(Routes.PARENT_PROFILE) {
-            ProfileScreen(navController)
-        }
+            composable(Routes.PARENT_PROFILE) {
+                ProfileScreen(navController)
+            }
 
-        composable(Routes.BHW_PROFILE) {
-            ProfileScreen(navController)
-        }
+            composable(Routes.BHW_PROFILE) {
+                ProfileScreen(navController)
+            }
 
-        // ================= CHILD MANAGEMENT =================
+            // ================= CHILD MANAGEMENT =================
 
-        composable(Routes.CREATE_CHILD) {
-            CreateChildProfileScreen(navController)
-        }
+            composable(Routes.CREATE_CHILD) {
+                CreateChildProfileScreen(navController)
+            }
 
-        composable(
-            route = Routes.SEND_ALERT,
-            arguments = listOf(
-                navArgument("childId") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                }
-            )
-        ) { backStackEntry ->
-            SendStatusAlertScreen(
-                navController = navController,
-                preselectedChildId = backStackEntry.arguments?.getString("childId")
-            )
-        }
+            composable(
+                route = Routes.SEND_ALERT,
+                arguments = listOf(
+                    navArgument("childId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                SendStatusAlertScreen(
+                    navController = navController,
+                    preselectedChildId = backStackEntry.arguments?.getString("childId")
+                )
+            }
 
         // ================= VIEW CHILD =================
 
-        composable(
-            route     = Routes.VIEW_CHILD,
-            arguments = listOf(navArgument("childId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
-            ViewChildProfileScreen(navController, childId)
-        }
+            composable(
+                route     = Routes.VIEW_CHILD,
+                arguments = listOf(navArgument("childId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
+                ViewChildProfileScreen(navController, childId)
+            }
 
         // ================= UPDATE CHILD =================
 
-        composable(
-            route     = Routes.UPDATE_CHILD,
-            arguments = listOf(navArgument("childId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
-            UpdateChildProfileScreen(navController, childId)
-        }
+            composable(
+                route     = Routes.UPDATE_CHILD,
+                arguments = listOf(navArgument("childId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
+                UpdateChildProfileScreen(navController, childId)
+            }
 
         // ================= CHILD HISTORY =================
 
-        composable(
-            route     = Routes.CHILD_HISTORY,
-            arguments = listOf(navArgument("childId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
-            ChildHistoryScreen(navController, childId)
-        }
+            composable(
+                route     = Routes.CHILD_HISTORY,
+                arguments = listOf(navArgument("childId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
+                ChildHistoryScreen(navController, childId)
+            }
 
-        composable(Routes.EVIDENCE_PREVIEW) {
-            val imageUrl = navController.previousBackStackEntry
-                ?.savedStateHandle
-                ?.get<String>("evidence_url")
-                ?: return@composable
-            EvidencePreviewScreen(navController, imageUrl)
-        }
+            composable(Routes.EVIDENCE_PREVIEW) {
+                val imageUrls = navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.get<ArrayList<String>>("evidence_urls")
+                    ?: navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.get<String>("evidence_url")
+                        ?.let { arrayListOf(it) }
+                    ?: return@composable
+                EvidencePreviewScreen(navController, imageUrls)
+            }
 
         // ================= DELETE CHILD =================
 
-        composable(
-            route     = Routes.DELETE_CHILD,
-            arguments = listOf(navArgument("childId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
-            DeleteChildProfileScreen(navController, childId)
+            composable(
+                route     = Routes.DELETE_CHILD,
+                arguments = listOf(navArgument("childId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val childId = backStackEntry.arguments?.getString("childId") ?: return@composable
+                DeleteChildProfileScreen(navController, childId)
+            }
         }
     }
 }

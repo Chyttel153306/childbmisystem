@@ -87,8 +87,8 @@ fun CreateChildProfileScreen(navController: NavController) {
 
     var selectedChildPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedChildPhotoFileName by remember { mutableStateOf<String?>(null) }
-    var selectedEvidenceUri by remember { mutableStateOf<Uri?>(null) }
-    var selectedEvidenceFileName by remember { mutableStateOf<String?>(null) }
+    var selectedEvidenceUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var selectedEvidenceFileNames by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val genderOptions = listOf("Male", "Female")
     val inputBackgroundColor = Color(0xFFE8E9EC)
@@ -112,18 +112,26 @@ fun CreateChildProfileScreen(navController: NavController) {
     }
 
     val proofPhotoPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    it,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        val selectedUris = uris.take(2)
+        if (uris.size > 2) {
+            Toast.makeText(context, "Only 2 evidence photos can be selected.", Toast.LENGTH_SHORT).show()
+        }
+        if (selectedUris.isNotEmpty()) {
+            selectedUris.forEach { uri ->
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
             }
-            selectedEvidenceUri = it
-            selectedEvidenceFileName = it.displayName(context.contentResolver)
-            Toast.makeText(context, "Photo selected", Toast.LENGTH_SHORT).show()
+            runCatching {
+                selectedEvidenceUris = selectedUris
+                selectedEvidenceFileNames = selectedUris.map { it.displayName(context.contentResolver) }
+                Toast.makeText(context, "Evidence photo selected", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -214,7 +222,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                             label = "Age (months)",
                             placeholder = "e.g. 24",
                             value = ageMonths,
-                            onValueChange = { ageMonths = filterWholeNumberInput(it) },
+                            onValueChange = { ageMonths = filterWholeNumberInput(it, 2) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f),
                             backgroundColor = inputBackgroundColor,
@@ -384,7 +392,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                             label = "Height (cm)",
                             placeholder = "Enter height",
                             value = height,
-                            onValueChange = { height = filterPositiveDecimalInput(it) },
+                            onValueChange = { height = filterPositiveDecimalInput(it, 3) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f),
                             backgroundColor = inputBackgroundColor,
@@ -394,7 +402,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                             label = "Weight (kg)",
                             placeholder = "Enter weight",
                             value = weight,
-                            onValueChange = { weight = filterPositiveDecimalInput(it) },
+                            onValueChange = { weight = filterPositiveDecimalInput(it, 2) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.weight(1f),
                             backgroundColor = inputBackgroundColor,
@@ -436,7 +444,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
                     ) {
-                        if (selectedEvidenceUri != null) {
+                        if (selectedEvidenceUris.isNotEmpty()) {
                             androidx.compose.material3.Icon(
                                 imageVector = Icons.Filled.CheckCircle,
                                 contentDescription = "Photo Selected",
@@ -444,7 +452,7 @@ fun CreateChildProfileScreen(navController: NavController) {
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = selectedEvidenceFileName ?: "Photo Selected",
+                                text = evidenceSelectionLabel(selectedEvidenceFileNames, selectedEvidenceUris.size),
                                 color = primaryGreen,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -501,9 +509,9 @@ fun CreateChildProfileScreen(navController: NavController) {
                                 weightKg = w,
                                 notes = address.trim(),
                                 date = AppData.getCurrentDate(),
-                                evidenceUri = selectedEvidenceUri,
-                                evidenceMimeType = selectedEvidenceUri?.let { context.contentResolver.getType(it) }.orEmpty(),
-                                evidenceFileName = selectedEvidenceFileName.orEmpty()
+                                evidenceUris = selectedEvidenceUris,
+                                evidenceMimeTypes = selectedEvidenceUris.map { context.contentResolver.getType(it).orEmpty() },
+                                evidenceFileNames = selectedEvidenceFileNames
                             )
 
                             Toast.makeText(context, "Profile Created!", Toast.LENGTH_SHORT).show()
@@ -602,18 +610,34 @@ private fun shouldShowPositiveDecimalError(value: String, submitAttempted: Boole
     return submitAttempted
 }
 
-private fun filterWholeNumberInput(input: String): String = input.filter { it.isDigit() }
+private fun filterWholeNumberInput(input: String, maxDigits: Int): String {
+    return input.filter { it.isDigit() }.take(maxDigits)
+}
 
-private fun filterPositiveDecimalInput(input: String): String {
+private fun filterPositiveDecimalInput(
+    input: String,
+    maxWholeDigits: Int,
+    maxFractionDigits: Int = 2
+): String {
     val result = StringBuilder()
     var hasDecimal = false
+    var wholeDigits = 0
+    var fractionDigits = 0
 
     input.forEach { char ->
         when {
-            char.isDigit() -> result.append(char)
+            char.isDigit() && !hasDecimal && wholeDigits < maxWholeDigits -> {
+                result.append(char)
+                wholeDigits++
+            }
+            char.isDigit() && hasDecimal && fractionDigits < maxFractionDigits -> {
+                result.append(char)
+                fractionDigits++
+            }
             char == '.' && !hasDecimal -> {
                 if (result.isEmpty()) {
                     result.append("0")
+                    wholeDigits = 1
                 }
                 result.append(char)
                 hasDecimal = true
@@ -622,6 +646,14 @@ private fun filterPositiveDecimalInput(input: String): String {
     }
 
     return result.toString()
+}
+
+private fun evidenceSelectionLabel(fileNames: List<String>, count: Int): String {
+    if (fileNames.isEmpty()) {
+        return "$count photo${if (count == 1) "" else "s"} selected"
+    }
+
+    return fileNames.joinToString(", ")
 }
 
 private fun Uri.displayName(contentResolver: android.content.ContentResolver): String {

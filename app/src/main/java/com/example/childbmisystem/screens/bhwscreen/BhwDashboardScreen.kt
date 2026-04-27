@@ -440,7 +440,7 @@ fun BhwChildItemCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(child.fullName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppTextPrimary)
-                    Text("${child.ageYears} yrs · ${child.gender}", fontSize = 13.sp, color = AppTextSecondary)
+                    Text("${child.ageMonthLabel} - ${child.gender}", fontSize = 13.sp, color = AppTextSecondary)
                     child.latestBmi?.let { bmi ->
                         Text(
                             "H: ${bmi.heightCm}cm  W: ${bmi.weightKg}kg",

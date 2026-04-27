@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -46,23 +47,40 @@ data class BmiRecord(
     val recordedBy: String = "",
     val evidenceUrl: String = "",
     val photoUrl: String = "",
+    val evidenceUrls: List<String> = emptyList(),
     val evidenceMimeType: String = "",
-    val evidenceFileName: String = ""
+    val evidenceFileName: String = "",
+    val evidenceMimeTypes: List<String> = emptyList(),
+    val evidenceFileNames: List<String> = emptyList()
 ) {
-    fun toMap() = mapOf(
-        "date" to date,
-        "heightCm" to heightCm,
-        "weightKg" to weightKg,
-        "bmi" to bmi,
-        "status" to status,
-        "notes" to notes,
-        "recordedBy" to recordedBy,
-        "timestamp" to Timestamp.now(),
-        "evidenceUrl" to evidenceUrl.ifBlank { photoUrl },
-        "photoUrl" to photoUrl.ifBlank { evidenceUrl },
-        "evidenceMimeType" to evidenceMimeType,
-        "evidenceFileName" to evidenceFileName
-    )
+    val allEvidenceUrls: List<String>
+        get() = (evidenceUrls + evidenceUrl + photoUrl)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+
+    fun toMap(): Map<String, Any> {
+        val urls = allEvidenceUrls
+        val firstUrl = urls.firstOrNull().orEmpty()
+
+        return mapOf(
+            "date" to date,
+            "heightCm" to heightCm,
+            "weightKg" to weightKg,
+            "bmi" to bmi,
+            "status" to status,
+            "notes" to notes,
+            "recordedBy" to recordedBy,
+            "timestamp" to Timestamp.now(),
+            "evidenceUrl" to firstUrl,
+            "photoUrl" to firstUrl,
+            "evidenceUrls" to urls,
+            "evidenceMimeType" to evidenceMimeType,
+            "evidenceFileName" to evidenceFileName,
+            "evidenceMimeTypes" to evidenceMimeTypes,
+            "evidenceFileNames" to evidenceFileNames
+        )
+    }
 }
 
 data class Child(
@@ -82,6 +100,13 @@ data class Child(
 
     val ageMonths: Int
         get() = monthsFromDob(dateOfBirth)
+
+    val ageMonthLabel: String
+        get() {
+            val displayMonths = ageMonths.coerceAtLeast(1)
+            val unit = if (displayMonths == 1) "month" else "months"
+            return "$displayMonths $unit"
+        }
 
     val ageYears: Int
         get() = ageMonths / 12
@@ -123,17 +148,24 @@ object AppData {
     private var isListening = false
 
     suspend fun login(email: String, password: String, role: String): Boolean {
-        val user = FirebaseRepository.getUserByEmail(email) ?: return false
-        if (!user.role.equals(role, ignoreCase = true)) return false
-
         val result = FirebaseRepository.loginWithEmail(email, password)
-        return if (result.isSuccess) {
-            currentUser.value = user
-            loadData()
-            true
-        } else {
-            false
+        if (result.isFailure) return false
+
+        val uid = result.getOrNull().orEmpty()
+        val user = FirebaseRepository.getUser(uid)
+
+        if (user == null || !user.role.equals(role, ignoreCase = true)) {
+            FirebaseRepository.logout()
+            currentUser.value = null
+            children.clear()
+            alerts.clear()
+            isListening = false
+            return false
         }
+
+        currentUser.value = user
+        loadData()
+        return true
     }
 
     suspend fun register(
@@ -145,17 +177,28 @@ object AppData {
         phoneNumber: String,
         address: String
     ): Boolean {
-        if (FirebaseRepository.getUserByUsername(username) != null) return false
+        val normalizedUsername = username.lowercase()
+        if (FirebaseRepository.getUserByUsername(normalizedUsername) != null) return false
 
         val result = FirebaseRepository.registerWithEmail(email, password)
-        if (result.isFailure) return false
+        val uid = when {
+            result.isSuccess -> result.getOrNull().orEmpty()
+            result.exceptionOrNull() is FirebaseAuthUserCollisionException -> {
+                val loginResult = FirebaseRepository.loginWithEmail(email, password)
+                val existingUid = loginResult.getOrNull().orEmpty()
+                if (existingUid.isBlank()) return false
+                if (FirebaseRepository.getUser(existingUid) != null) return false
+                existingUid
+            }
+            else -> return false
+        }
 
-        val uid = result.getOrNull() ?: return false
+        if (uid.isBlank()) return false
 
         val user = User(
             id = uid,
             fullName = fullName,
-            username = username.lowercase(),
+            username = normalizedUsername,
             password = "",
             role = role.lowercase(),
             email = email,
@@ -318,9 +361,9 @@ object AppData {
         weightKg: Double,
         notes: String,
         date: String,
-        evidenceUri: Uri? = null,
-        evidenceMimeType: String = "",
-        evidenceFileName: String = ""
+        evidenceUris: List<Uri> = emptyList(),
+        evidenceMimeTypes: List<String> = emptyList(),
+        evidenceFileNames: List<String> = emptyList()
     ) {
         val child = getChild(childId)
         val childAgeMonths = child?.ageMonths
@@ -328,7 +371,11 @@ object AppData {
 
         val childGender = child?.gender
         val bmi = calculateBmi(heightCm, weightKg, childAgeMonths)
-        val initialEvidenceUrl = evidenceUri?.toString().orEmpty()
+        val selectedEvidenceUris = evidenceUris.take(2)
+        val initialEvidenceUrls = selectedEvidenceUris.map { it.toString() }
+        val initialEvidenceUrl = initialEvidenceUrls.firstOrNull().orEmpty()
+        val selectedEvidenceMimeTypes = evidenceMimeTypes.take(2)
+        val selectedEvidenceFileNames = evidenceFileNames.take(2)
 
         val record = BmiRecord(
             date = date,
@@ -340,25 +387,31 @@ object AppData {
             recordedBy = currentUser.value?.fullName ?: "BHW",
             evidenceUrl = initialEvidenceUrl,
             photoUrl = initialEvidenceUrl,
-            evidenceMimeType = evidenceMimeType,
-            evidenceFileName = evidenceFileName
+            evidenceUrls = initialEvidenceUrls,
+            evidenceMimeType = selectedEvidenceMimeTypes.firstOrNull().orEmpty(),
+            evidenceFileName = selectedEvidenceFileNames.firstOrNull().orEmpty(),
+            evidenceMimeTypes = selectedEvidenceMimeTypes,
+            evidenceFileNames = selectedEvidenceFileNames
         )
 
         val result = FirebaseRepository.addBmiRecord(childId, record)
         val recordId = result.getOrNull() ?: ""
 
-        var evidenceUrl = initialEvidenceUrl
-        if (evidenceUri != null && recordId.isNotBlank()) {
-            val uploadResult = FirebaseRepository.uploadBmiEvidence(
-                childId = childId,
-                recordId = recordId,
-                evidenceUri = evidenceUri,
-                evidenceFileName = evidenceFileName
-            )
-            if (uploadResult.isSuccess) {
-                evidenceUrl = uploadResult.getOrNull() ?: ""
+        var evidenceUrls = initialEvidenceUrls
+        if (selectedEvidenceUris.isNotEmpty() && recordId.isNotBlank()) {
+            evidenceUrls = selectedEvidenceUris.mapIndexed { index, evidenceUri ->
+                val uploadResult = FirebaseRepository.uploadBmiEvidence(
+                    childId = childId,
+                    recordId = recordId,
+                    evidenceUri = evidenceUri,
+                    evidenceFileName = selectedEvidenceFileNames.getOrNull(index).orEmpty(),
+                    evidenceIndex = index + 1
+                )
+                uploadResult.getOrNull() ?: initialEvidenceUrls.getOrNull(index).orEmpty()
             }
+                .filter { it.isNotBlank() }
         }
+        val evidenceUrl = evidenceUrls.firstOrNull().orEmpty()
 
         FirebaseRepository.db
             .collection("children")
@@ -369,8 +422,11 @@ object AppData {
                 mapOf(
                     "evidenceUrl" to evidenceUrl,
                     "photoUrl" to evidenceUrl,
-                    "evidenceMimeType" to evidenceMimeType,
-                    "evidenceFileName" to evidenceFileName
+                    "evidenceUrls" to evidenceUrls,
+                    "evidenceMimeType" to selectedEvidenceMimeTypes.firstOrNull().orEmpty(),
+                    "evidenceFileName" to selectedEvidenceFileNames.firstOrNull().orEmpty(),
+                    "evidenceMimeTypes" to selectedEvidenceMimeTypes,
+                    "evidenceFileNames" to selectedEvidenceFileNames
                 )
             )
             .await()
@@ -378,7 +434,8 @@ object AppData {
         val newRecord = record.copy(
             id = recordId,
             evidenceUrl = evidenceUrl,
-            photoUrl = evidenceUrl
+            photoUrl = evidenceUrl,
+            evidenceUrls = evidenceUrls
         )
 
         FirebaseRepository.db

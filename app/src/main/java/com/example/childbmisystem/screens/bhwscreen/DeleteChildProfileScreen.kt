@@ -50,7 +50,7 @@ fun DeleteChildProfileScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val documentCount = child.bmiHistory.count { it.evidenceUrl.isNotBlank() || it.photoUrl.isNotBlank() }
+    val documentCount = child.bmiHistory.count { it.allEvidenceUrls.isNotEmpty() }
     val backgroundColor = Color(0xFFF8F8F8)
     val red = Color(0xFFFF3B30)
     val lightRed = Color(0xFFFFF1F1)
