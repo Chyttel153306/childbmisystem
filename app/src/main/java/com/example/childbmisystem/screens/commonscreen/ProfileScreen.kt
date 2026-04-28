@@ -488,7 +488,7 @@ fun ProfileScreen(navController: NavController) {
                                 label = "Phone Number",
                                 value = phoneNumber,
                                 enabled = isEditing,
-                                onValueChange = { phoneNumber = it }
+                                onValueChange = { phoneNumber = filterPhoneNumberInput(it) }
                             )
                             ProfileField(
                                 label = "Address",
@@ -534,6 +534,7 @@ fun ProfileScreen(navController: NavController) {
                                     onClick = {
                                         val cleanName = fullName.trim()
                                         val cleanAddress = address.trim()
+                                        val cleanPhoneNumber = phoneNumber.trim()
 
                                         if (cleanName.isBlank() || cleanAddress.isBlank()) {
                                             Toast.makeText(
@@ -544,11 +545,20 @@ fun ProfileScreen(navController: NavController) {
                                             return@Button
                                         }
 
+                                        if (cleanPhoneNumber.length != 11) {
+                                            Toast.makeText(
+                                                context,
+                                                "Phone number must be exactly 11 digits.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            return@Button
+                                        }
+
                                         scope.launch {
                                             isSaving = true
                                             val saved = AppData.updateCurrentUserProfile(
                                                 fullName = cleanName,
-                                                phoneNumber = phoneNumber,
+                                                phoneNumber = cleanPhoneNumber,
                                                 address = cleanAddress,
                                                 profileImageUri = selectedProfileUri
                                             )
@@ -714,6 +724,10 @@ private fun saveCachedProfilePhoto(
     if (userId.isBlank() || photoUrl.isBlank()) return
     val prefs = context.getSharedPreferences("profile_photo_cache", android.content.Context.MODE_PRIVATE)
     prefs.edit().putString("photo_$userId", photoUrl).apply()
+}
+
+private fun filterPhoneNumberInput(input: String): String {
+    return input.filter { it.isDigit() }.take(11)
 }
 
 @Composable
